@@ -125,11 +125,13 @@
   }
 
   function getDaysRemaining(expiryDate) {
+    if (!expiryDate) return 0;
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const exp = new Date(expiryDate);
     exp.setHours(0, 0, 0, 0);
-    return Math.ceil((exp - now) / (1000 * 60 * 60 * 24));
+    const diffTime = exp.getTime() - now.getTime();
+    return Math.round(diffTime / (1000 * 60 * 60 * 24));
   }
 
   function getExpiryStatus(expiryDate) {
@@ -272,17 +274,24 @@
 
   function updateSyncStatus(status, type = 'info') {
     const el = document.getElementById('sync-status');
-    if (!el) return;
-    if (type === 'error') {
-      el.style.color = '#ff6b6b';
-      el.textContent = '🔴 同步失敗：' + status;
-    } else if (type === 'success') {
-      el.style.color = '#00d4aa';
-      el.textContent = '🟢 ' + status;
-    } else {
-      el.style.color = 'var(--text-secondary)';
-      el.textContent = '🟡 ' + status;
-    }
+    const modalEl = document.getElementById('sync-status-modal');
+    
+    const updateEl = (target) => {
+      if (!target) return;
+      if (type === 'error') {
+        target.style.color = '#ff6b6b';
+        target.textContent = '🔴 同步失敗：' + status;
+      } else if (type === 'success') {
+        target.style.color = '#00d4aa';
+        target.textContent = '🟢 ' + status;
+      } else {
+        target.style.color = 'var(--text-secondary)';
+        target.textContent = '🟡 ' + status;
+      }
+    };
+
+    updateEl(el);
+    updateEl(modalEl);
   }
 
   function syncWithCloud() {
@@ -402,6 +411,61 @@
       .catch(err => {
         console.error('Push sync error:', err);
         updateSyncStatus('同步失敗 (連線錯誤)', 'error');
+      });
+  }
+
+  function performCloudSyncAction(actionCallback, afterCallback) {
+    if (!gasUrl) {
+      actionCallback();
+      saveData('skipCloud');
+      if (afterCallback) afterCallback();
+      return;
+    }
+
+    const overlay = document.getElementById('sync-loading-overlay');
+    const overlayText = document.getElementById('sync-loading-text');
+    if (overlay) {
+      if (overlayText) overlayText.textContent = '正在與雲端同步最新資料...';
+      overlay.classList.remove('hidden');
+    }
+
+    const syncUrl = gasUrl + (gasUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    fetch(syncUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.materials) {
+          processes = data.processes || [];
+          materials = data.materials || [];
+          sterilizationRecords = data.sterilizationRecords || [];
+          usageRecords = data.usageRecords || [];
+          if (data.currentProcessId !== undefined) {
+            currentProcessId = data.currentProcessId;
+          }
+          saveData('skipCloud');
+        }
+        
+        actionCallback();
+        saveData(); // saves locally and pushes back to cloud
+
+        if (overlay) overlay.classList.add('hidden');
+        
+        // Show success status
+        updateSyncStatus('已同步至雲端', 'success');
+        
+        const timeEl = document.getElementById('sync-time-modal');
+        if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
+
+        if (afterCallback) afterCallback();
+      })
+      .catch(err => {
+        console.error('Action cloud sync error:', err);
+        showToast('無法同步雲端，已以離線模式儲存於本機');
+        
+        actionCallback();
+        saveData('skipCloud');
+        
+        if (overlay) overlay.classList.add('hidden');
+        if (afterCallback) afterCallback();
       });
   }
 
@@ -589,26 +653,26 @@
           return;
         }
 
-        if (editId) {
-          // Edit existing
-          const idx = processes.findIndex(p => p.id === Number(editId));
-          if (idx !== -1) {
-            processes[idx].name = name;
-            processes[idx].startDate = startDate;
+        performCloudSyncAction(() => {
+          if (editId) {
+            // Edit existing
+            const idx = processes.findIndex(p => p.id === Number(editId));
+            if (idx !== -1) {
+              processes[idx].name = name;
+              processes[idx].startDate = startDate;
+            }
+          } else {
+            // Add new
+            const proc = { id: generateId(), name: name, startDate: startDate };
+            processes.push(proc);
+            currentProcessId = proc.id;
           }
-        } else {
-          // Add new
-          const proc = { id: generateId(), name: name, startDate: startDate };
-          processes.push(proc);
-          currentProcessId = proc.id;
-          saveData('currentProcessId');
-        }
-
-        saveData('processes');
-        closeModal('process');
-        showToast(editId ? '製程批次已更新' : '製程批次已建立');
-        renderProcessPills();
-        renderDashboard();
+        }, () => {
+          closeModal('process');
+          showToast(editId ? '製程批次已更新' : '製程批次已建立');
+          renderProcessPills();
+          renderDashboard();
+        });
       });
     }
   }
@@ -626,19 +690,18 @@
 
   function deleteProcess(processId) {
     showConfirm('確定刪除此製程批次？\n相關的所有滅菌及使用紀錄也將被刪除。', function () {
-      processes = processes.filter(p => p.id !== processId);
-      sterilizationRecords = sterilizationRecords.filter(r => r.processId !== processId);
-      usageRecords = usageRecords.filter(r => r.processId !== processId);
-      if (currentProcessId === processId) {
-        currentProcessId = processes.length > 0 ? processes[0].id : null;
-        saveData('currentProcessId');
-      }
-      saveData('processes');
-      saveData('sterilizationRecords');
-      saveData('usageRecords');
-      showToast('製程批次已刪除');
-      renderProcessPills();
-      renderDashboard();
+      performCloudSyncAction(() => {
+        processes = processes.filter(p => p.id !== processId);
+        sterilizationRecords = sterilizationRecords.filter(r => r.processId !== processId);
+        usageRecords = usageRecords.filter(r => r.processId !== processId);
+        if (currentProcessId === processId) {
+          currentProcessId = processes.length > 0 ? processes[0].id : null;
+        }
+      }, () => {
+        showToast('製程批次已刪除');
+        renderProcessPills();
+        renderDashboard();
+      });
     });
   }
 
@@ -2198,82 +2261,24 @@
     }
   }
 
-  // ─── Backup & Restore ───────────────────────────────────────────────
-  function initBackupRestore() {
-    const btnExport = document.getElementById('btn-export-backup');
-    const btnImportTrigger = document.getElementById('btn-import-trigger');
-    const inputImport = document.getElementById('input-import-backup');
-    const btnReset = document.getElementById('btn-reset-system');
-
-    if (btnExport) {
-      btnExport.addEventListener('click', function () {
-        const backupData = {
-          processes: processes,
-          materials: materials,
-          sterilizationRecords: sterilizationRecords,
-          usageRecords: usageRecords
-        };
-        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'cpi_backup_' + todayISO() + '.json';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        showToast('資料備份已匯出');
+  // ─── Settings & Synchronization ─────────────────────────────────────
+  function initSettings() {
+    // Open Settings Modal from any button in headers
+    document.querySelectorAll('.btn-open-settings').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const inputGas = document.getElementById('input-gas-url-modal');
+        if (inputGas) {
+          inputGas.value = gasUrl;
+        }
+        openModal('settings');
       });
-    }
+    });
 
-    if (btnImportTrigger && inputImport) {
-      btnImportTrigger.addEventListener('click', function () {
-        inputImport.click();
-      });
-    }
-
-    if (inputImport) {
-      inputImport.addEventListener('change', function (e) {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function (evt) {
-          try {
-            const data = JSON.parse(evt.target.result);
-            if (!data.materials || !Array.isArray(data.materials)) {
-              showToast('無效的備份檔案格式');
-              return;
-            }
-            
-            showConfirm('確定還原此備份資料？這將覆蓋您目前的所有資料。', function () {
-              processes = data.processes || [];
-              materials = data.materials || [];
-              sterilizationRecords = data.sterilizationRecords || [];
-              usageRecords = data.usageRecords || [];
-              
-              if (processes.length > 0) {
-                currentProcessId = processes[0].id;
-              } else {
-                currentProcessId = null;
-              }
-              
-              saveData();
-              showToast('資料還原成功，網頁即將重新整理...');
-              setTimeout(function () {
-                location.reload();
-              }, 1500);
-            });
-          } catch (err) {
-            showToast('解析備份檔案失敗');
-          }
-        };
-        reader.readAsText(file);
-      });
-    }
-
+    // Reset System Button inside Settings Modal
+    const btnReset = document.getElementById('btn-reset-system-modal');
     if (btnReset) {
       btnReset.addEventListener('click', function () {
-        showConfirm('⚠️ 確定重置系統？所有製程、耗材和歷史紀錄將會被清空並恢復預設。', function () {
+        showConfirm('⚠️ 確定重置系統？所有製程、耗材和歷史紀錄將會被清空。', function () {
           localStorage.clear();
           showToast('系統已重置，網頁即將重新整理...');
           setTimeout(function () {
@@ -2283,10 +2288,38 @@
       });
     }
 
-    // Google Sheets URL bindings
-    const inputGasUrl = document.getElementById('input-gas-url');
-    const btnSaveGasUrl = document.getElementById('btn-save-gas-url');
-    const btnManualSync = document.getElementById('btn-manual-sync');
+    // Force Reload / Cache Bust inside Settings Modal
+    const btnReload = document.getElementById('btn-reload-app');
+    if (btnReload) {
+      btnReload.addEventListener('click', function () {
+        showToast('正在清除快取並重新整理...');
+        // Unregister SW
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function (registrations) {
+            for (let registration of registrations) {
+              registration.unregister();
+            }
+          });
+        }
+        // Clear caches
+        if ('caches' in window) {
+          caches.keys().then(function (names) {
+            for (let name of names) {
+              caches.delete(name);
+            }
+          });
+        }
+        // Reload page
+        setTimeout(function () {
+          location.reload();
+        }, 800);
+      });
+    }
+
+    // Google Sheets URL bindings inside Settings Modal
+    const inputGasUrl = document.getElementById('input-gas-url-modal');
+    const btnSaveGasUrl = document.getElementById('btn-save-gas-url-modal');
+    const btnManualSync = document.getElementById('btn-manual-sync-modal');
     const skipBtn = document.getElementById('btn-skip-sync');
     
     if (inputGasUrl) {
@@ -2294,10 +2327,11 @@
     }
 
     if (btnManualSync) {
-      if (gasUrl) {
-        btnManualSync.style.display = 'inline-block';
-      }
       btnManualSync.addEventListener('click', function () {
+        if (!gasUrl) {
+          showToast('請先輸入並儲存雲端同步網址');
+          return;
+        }
         hasSyncedFromCloud = false;
         syncWithCloud();
       });
@@ -2318,9 +2352,6 @@
         gasUrl = urlVal;
         localStorage.setItem('cpi_gas_url', urlVal);
         showToast('已儲存雲端同步網址');
-        if (btnManualSync) {
-          btnManualSync.style.display = urlVal ? 'inline-block' : 'none';
-        }
         hasSyncedFromCloud = false;
         syncWithCloud();
       });
@@ -2339,7 +2370,7 @@
     initIconPicker();
     initSterilizationPage();
     initUsagePage();
-    initBackupRestore();
+    initSettings();
     bindQtyAdjustButtons(document.getElementById('form-material'));
 
     renderProcessPills();

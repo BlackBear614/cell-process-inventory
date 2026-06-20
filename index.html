@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <div id="app">
@@ -22,6 +22,9 @@
       <div class="page-header">
         <h1>製程總覽</h1>
         <p class="page-subtitle">Dashboard</p>
+        <button class="header-btn btn-open-settings" aria-label="設定">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
       <div class="page-content">
         <!-- Process Batch Selector -->
@@ -113,46 +116,6 @@
           </div>
         </div>
         <div id="dashboard-materials"></div>
-
-        <!-- System Data Management Card -->
-        <div class="card glass-card system-settings-card" style="margin-top: 24px;">
-          <div class="card-header-row">
-            <div class="card-icon-wrap" style="background: rgba(0, 212, 170, 0.1); color: var(--primary);">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            </div>
-            <h2>系統設定與備份</h2>
-          </div>
-          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
-            建議定期備份資料。若 iOS 系統因長時間未使用清除瀏覽器快取，可透過還原功能回復所有歷史紀錄。
-          </p>
-          <div class="system-actions">
-            <button class="btn-primary" id="btn-export-backup">
-              💾 備份資料 (JSON)
-            </button>
-            <button class="btn-secondary" id="btn-import-trigger">
-              📤 還原資料
-            </button>
-            <button class="btn-danger" id="btn-reset-system">
-              ⚠️ 重置
-            </button>
-            <input type="file" id="input-import-backup" accept=".json" style="display: none;">
-          </div>
-          <div class="gas-sync-section" style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
-            <div class="form-group" style="margin-bottom: 8px;">
-              <label for="input-gas-url" style="font-size: 12px; color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 4px;">Google Sheets 同步網址 (GAS Web App URL)</label>
-              <input type="url" id="input-gas-url" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; font-size: 12px; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box;">
-            </div>
-            <button class="btn-secondary btn-full" id="btn-save-gas-url" style="font-size: 12px; padding: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;">
-              🔗 儲存並同步資料
-            </button>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-              <div id="sync-status" style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">
-                ⚪ 未設定雲端同步
-              </div>
-              <button type="button" class="header-btn-sm" id="btn-manual-sync" style="font-size: 10px; padding: 2px 6px; display: none;">🔄 同步</button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -161,9 +124,14 @@
       <div class="page-header">
         <h1>庫存清單</h1>
         <p class="page-subtitle">Inventory</p>
-        <button class="header-btn" id="btn-add-material" aria-label="新增項目">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        </button>
+        <div class="header-actions">
+          <button class="header-btn" id="btn-add-material" aria-label="新增項目">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="header-btn btn-open-settings" aria-label="設定">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
       </div>
       <div class="page-content">
         <div id="materials-list"></div>
@@ -175,6 +143,9 @@
       <div class="page-header">
         <h1>滅菌紀錄</h1>
         <p class="page-subtitle">Sterilization</p>
+        <button class="header-btn btn-open-settings" aria-label="設定">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
       <div class="page-content">
         <!-- Process Selector -->
@@ -236,6 +207,9 @@
       <div class="page-header">
         <h1>使用紀錄</h1>
         <p class="page-subtitle">Usage Log</p>
+        <button class="header-btn btn-open-settings" aria-label="設定">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
       <div class="page-content">
         <!-- Process Selector -->
@@ -412,6 +386,73 @@
       </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="modal-settings">
+      <div class="modal glass-modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2>系統設定</h2>
+          <button class="modal-close" data-modal="modal-settings" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="settings-content">
+          <!-- Google Sheets URL input -->
+          <div class="form-group" style="margin-bottom: 16px;">
+            <label for="input-gas-url-modal" style="font-size: 12px; color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 6px;">Google Sheets 同步網址 (GAS Web App URL)</label>
+            <input type="url" id="input-gas-url-modal" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; font-size: 13px; padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box;">
+          </div>
+          
+          <!-- Cloud Sync Actions -->
+          <div class="settings-section" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+            <h3 class="settings-sec-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">雲端備份與同步</h3>
+            <div class="settings-sync-box" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: var(--radius-md);">
+              <div id="sync-status-modal" class="sync-status-text" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+                ⚪ 未設定雲端同步
+              </div>
+              <div class="sync-buttons-row" style="display: flex; gap: 10px;">
+                <button class="btn-primary" id="btn-save-gas-url-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                  💾 儲存並同步
+                </button>
+                <button class="btn-secondary" id="btn-manual-sync-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                  🔄 立即同步
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- System Maintenance -->
+          <div class="settings-section" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+            <h3 class="settings-sec-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">系統維護</h3>
+            <div class="system-maintenance-row" style="display: flex; gap: 10px;">
+              <button class="btn-secondary" id="btn-reload-app" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                🔄 重整快取/更新
+              </button>
+              <button class="btn-danger" id="btn-reset-system-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                ⚠️ 重置系統資料
+              </button>
+            </div>
+          </div>
+
+          <!-- App Information -->
+          <div class="settings-info-section" style="margin-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="info-row" style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span class="info-label" style="color: var(--text-secondary);">應用程式版本</span>
+              <span class="info-value" id="app-version-tag" style="color: var(--primary); font-weight: 600;">v1.8.0</span>
+            </div>
+            <div class="info-row" style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span class="info-label" style="color: var(--text-secondary);">本地快取版本</span>
+              <span class="info-value" style="color: var(--text-primary);">Cache v18</span>
+            </div>
+            <div class="info-row" style="display: flex; justify-content: space-between; font-size: 12px;">
+              <span class="info-label" style="color: var(--text-secondary);">最後同步時間</span>
+              <span class="info-value" id="sync-time-modal" style="color: var(--text-primary);">無</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Confirm Modal -->
     <div class="modal-overlay" id="modal-confirm">
       <div class="modal glass-modal modal-small">
@@ -439,6 +480,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

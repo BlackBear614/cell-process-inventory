@@ -167,6 +167,15 @@ input, select, textarea, button {
   font-weight: 400;
 }
 
+.header-actions {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .header-btn {
   position: absolute;
   top: 4px;
@@ -185,6 +194,10 @@ input, select, textarea, button {
   font-size: 20px;
   cursor: pointer;
   transition: all var(--transition);
+}
+
+.header-actions .header-btn {
+  position: static;
 }
 
 .header-btn:hover {
@@ -1779,17 +1792,21 @@ input, select, textarea, button {
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .form-row .form-group {
   flex: 1;
   min-width: 0;
+  margin-bottom: 0 !important; /* Prevent double-spacing/overlaps with flex gap */
 }
 
 @media (min-width: 480px) {
   .form-row {
     flex-direction: row;
+    gap: 16px;
   }
 }
 
@@ -1799,15 +1816,37 @@ input, select, textarea, button {
 }
 
 input[type="date"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
   width: 100% !important;
   max-width: 100% !important;
   box-sizing: border-box !important;
+  display: block !important;
+  min-height: 48px !important;
+  line-height: normal !important;
 }
 
 input[type="date"].date-input::-webkit-calendar-picker-indicator,
 .date-input input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
   cursor: pointer;
+}
+
+/* Adjust readonly value layout to match inputs perfectly */
+.readonly-value {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--primary);
+  letter-spacing: 0.2px;
 }
 
 .hint {
