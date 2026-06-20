@@ -1381,17 +1381,8 @@
           status = totalSter > 0 ? 'ok' : 'danger';
         }
 
-        // Available Qty to display in the badge
-        const badgeQty = validStock;
-        let badgeClass = 'badge-ok';
-        if (status === 'danger' || badgeQty === 0) {
-          badgeClass = 'badge-danger';
-        } else if (status === 'warn') {
-          badgeClass = 'badge-warn';
-        }
-
         // Render stock badge
-        const badgeHtml = '<div class="tile-stock-badge ' + badgeClass + '">' + badgeQty + '</div>';
+        const badgeHtml = '<div class="tile-stock-badge">' + validStock + '</div>';
 
         // Render detailed table for normal mode if expanded
         let detailPanelHtml = '';
