@@ -32,6 +32,8 @@
   let sterilizationRecords = [];
   let usageRecords = [];
   let currentProcessId = null;
+  let gasUrl = '';
+  let isSyncing = false;
 
   // Selection state for tile grids
   let sterSelectedIds = new Set();
@@ -234,14 +236,122 @@
       currentProcessId = processes.length > 0 ? processes[0].id : null;
       saveData('currentProcessId');
     }
+    
+    // Load GAS sync URL
+    gasUrl = localStorage.getItem('cpi_gas_url') || '';
   }
 
   function saveData(what) {
-    if (!what || what === 'processes') localStorage.setItem(STORAGE_KEYS.processes, JSON.stringify(processes));
-    if (!what || what === 'materials') localStorage.setItem(STORAGE_KEYS.materials, JSON.stringify(materials));
-    if (!what || what === 'sterilizationRecords') localStorage.setItem(STORAGE_KEYS.sterilizationRecords, JSON.stringify(sterilizationRecords));
-    if (!what || what === 'usageRecords') localStorage.setItem(STORAGE_KEYS.usageRecords, JSON.stringify(usageRecords));
-    if (!what || what === 'currentProcessId') localStorage.setItem(STORAGE_KEYS.currentProcessId, JSON.stringify(currentProcessId));
+    if (what !== 'skipCloud') {
+      if (!what || what === 'processes') localStorage.setItem(STORAGE_KEYS.processes, JSON.stringify(processes));
+      if (!what || what === 'materials') localStorage.setItem(STORAGE_KEYS.materials, JSON.stringify(materials));
+      if (!what || what === 'sterilizationRecords') localStorage.setItem(STORAGE_KEYS.sterilizationRecords, JSON.stringify(sterilizationRecords));
+      if (!what || what === 'usageRecords') localStorage.setItem(STORAGE_KEYS.usageRecords, JSON.stringify(usageRecords));
+      if (!what || what === 'currentProcessId') localStorage.setItem(STORAGE_KEYS.currentProcessId, JSON.stringify(currentProcessId));
+      
+      pushToCloud();
+    } else {
+      localStorage.setItem(STORAGE_KEYS.processes, JSON.stringify(processes));
+      localStorage.setItem(STORAGE_KEYS.materials, JSON.stringify(materials));
+      localStorage.setItem(STORAGE_KEYS.sterilizationRecords, JSON.stringify(sterilizationRecords));
+      localStorage.setItem(STORAGE_KEYS.usageRecords, JSON.stringify(usageRecords));
+      localStorage.setItem(STORAGE_KEYS.currentProcessId, JSON.stringify(currentProcessId));
+    }
+  }
+
+  function updateSyncStatus(status, type = 'info') {
+    const el = document.getElementById('sync-status');
+    if (!el) return;
+    if (type === 'error') {
+      el.style.color = '#ff6b6b';
+      el.textContent = '🔴 同步失敗：' + status;
+    } else if (type === 'success') {
+      el.style.color = '#00d4aa';
+      el.textContent = '🟢 ' + status;
+    } else {
+      el.style.color = 'var(--text-secondary)';
+      el.textContent = '🟡 ' + status;
+    }
+  }
+
+  function syncWithCloud() {
+    if (!gasUrl) {
+      updateSyncStatus('未設定雲端同步 (僅使用瀏覽器本機儲存)');
+      return;
+    }
+    if (isSyncing) return;
+    isSyncing = true;
+    updateSyncStatus('正在從雲端載入資料...');
+
+    fetch(gasUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.materials) {
+          processes = data.processes || [];
+          materials = data.materials || [];
+          sterilizationRecords = data.sterilizationRecords || [];
+          usageRecords = data.usageRecords || [];
+          if (data.currentProcessId !== undefined) {
+            currentProcessId = data.currentProcessId;
+          }
+          
+          // Save to local cache without triggering a loop sync back
+          saveData('skipCloud');
+          
+          // Refresh views
+          renderProcessPills();
+          renderDashboard();
+          renderMaterialsList();
+          renderSterilizationPage();
+          renderUsagePage();
+          
+          updateSyncStatus('已完成雲端資料同步', 'success');
+        } else {
+          updateSyncStatus('雲端資料格式錯誤，請檢查試算表', 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Fetch sync error:', err);
+        updateSyncStatus('連線失敗，使用本機暫存資料', 'error');
+      })
+      .finally(() => {
+        isSyncing = false;
+      });
+  }
+
+  function pushToCloud() {
+    if (!gasUrl) return;
+    updateSyncStatus('同步至雲端中...');
+    
+    const payload = {
+      action: 'sync',
+      data: {
+        processes: processes,
+        materials: materials,
+        sterilizationRecords: sterilizationRecords,
+        usageRecords: usageRecords,
+        currentProcessId: currentProcessId
+      }
+    };
+    
+    // We send payload as JSON string but do NOT set application/json content-type
+    // to prevent browser from sending preflight CORS OPTIONS requests to Google Apps Script.
+    fetch(gasUrl, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    })
+      .then(res => res.json())
+      .then(resData => {
+        if (resData && resData.success) {
+          updateSyncStatus('已同步至雲端', 'success');
+        } else {
+          updateSyncStatus('同步失敗: ' + (resData ? resData.error : '未知錯誤'), 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Push sync error:', err);
+        updateSyncStatus('同步失敗 (連線錯誤)', 'error');
+      });
   }
 
   // ─── Empty State Renderer ────────────────────────────────────────────
@@ -1974,6 +2084,24 @@
         });
       });
     }
+
+    // Google Sheets URL bindings
+    const inputGasUrl = document.getElementById('input-gas-url');
+    const btnSaveGasUrl = document.getElementById('btn-save-gas-url');
+    
+    if (inputGasUrl) {
+      inputGasUrl.value = gasUrl;
+    }
+    
+    if (btnSaveGasUrl && inputGasUrl) {
+      btnSaveGasUrl.addEventListener('click', function () {
+        const urlVal = inputGasUrl.value.trim();
+        gasUrl = urlVal;
+        localStorage.setItem('cpi_gas_url', urlVal);
+        showToast('已儲存雲端同步網址');
+        syncWithCloud();
+      });
+    }
   }
 
   // ─── Initialization ─────────────────────────────────────────────────
@@ -2006,6 +2134,9 @@
     switchToPage(activePage);
 
     registerServiceWorker();
+
+    // Trigger initial cloud sync
+    syncWithCloud();
   }
 
   document.addEventListener('DOMContentLoaded', init);
