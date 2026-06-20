@@ -52,6 +52,8 @@
   let sterHistorySortOrder = 'desc'; // 'desc' | 'asc'
   let usageHistorySortOrder = 'desc'; // 'desc' | 'asc'
   let expandedCardIds = new Set();
+  let expandedInventoryCardIds = new Set();
+  let inventoryEditMode = false;
   let hasSyncedFromCloud = false;
 
   let lastGeneratedId = 0;
@@ -1099,6 +1101,16 @@
   }
 
   function initMaterialForm() {
+    const btnToggleEdit = document.getElementById('btn-toggle-inventory-edit');
+    if (btnToggleEdit) {
+      btnToggleEdit.addEventListener('click', function () {
+        inventoryEditMode = !inventoryEditMode;
+        this.classList.toggle('active', inventoryEditMode);
+        this.textContent = inventoryEditMode ? '✓' : '✏️';
+        renderMaterialsList();
+      });
+    }
+
     const btnAdd = document.getElementById('btn-add-material');
     const form = document.getElementById('form-material');
     const fileInput = document.getElementById('input-material-file-icon');
@@ -1186,22 +1198,26 @@
           return;
         }
 
-        if (editId) {
-          const idx = materials.findIndex(m => m.id === Number(editId));
-          if (idx !== -1) {
-            materials[idx].name = name;
-            materials[idx].icon = icon;
-            materials[idx].requiredQty = qty;
-            materials[idx].processDay = day;
+        performCloudSyncAction(() => {
+          if (editId) {
+            const idx = materials.findIndex(m => m.id === Number(editId));
+            if (idx !== -1) {
+              materials[idx].name = name;
+              materials[idx].icon = icon;
+              materials[idx].requiredQty = qty;
+              materials[idx].processDay = day;
+            }
+          } else {
+            materials.push({ id: generateId(), name, icon, requiredQty: qty, processDay: day });
           }
-        } else {
-          materials.push({ id: generateId(), name, icon, requiredQty: qty, processDay: day });
-        }
-
-        saveData('materials');
-        closeModal('material');
-        showToast(editId ? '耗材已更新' : '耗材已新增');
-        renderMaterialsList();
+        }, () => {
+          closeModal('material');
+          showToast(editId ? '耗材已更新' : '耗材已新增');
+          renderMaterialsList();
+          renderDashboard();
+          renderSterilizationHistory();
+          renderUsageHistory();
+        });
       });
     }
   }
@@ -1303,14 +1319,17 @@
     const mat = materials.find(m => m.id === id);
     if (!mat) return;
     showConfirm('確定刪除「' + mat.name + '」？\n相關的滅菌及使用紀錄也將被刪除。', function () {
-      materials = materials.filter(m => m.id !== id);
-      sterilizationRecords = sterilizationRecords.filter(r => r.materialId !== id);
-      usageRecords = usageRecords.filter(r => r.materialId !== id);
-      saveData('materials');
-      saveData('sterilizationRecords');
-      saveData('usageRecords');
-      showToast('耗材已刪除');
-      renderMaterialsList();
+      performCloudSyncAction(() => {
+        materials = materials.filter(m => m.id !== id);
+        sterilizationRecords = sterilizationRecords.filter(r => r.materialId !== id);
+        usageRecords = usageRecords.filter(r => r.materialId !== id);
+      }, () => {
+        showToast('耗材已刪除');
+        renderMaterialsList();
+        renderDashboard();
+        renderSterilizationHistory();
+        renderUsageHistory();
+      });
     });
   }
 
@@ -1342,25 +1361,94 @@
         const totalSter = sterilizationRecords.filter(r => r.materialId === mat.id).reduce((s, r) => s + r.qty, 0);
         
         let stockText = '總滅菌: ' + totalSter;
+        let validStock = totalSter;
+        let expiredStock = 0;
+        let activeBatches = [];
+        let status = 'ok';
+
         if (currentProcessId) {
-          const activeBatches = getMaterialBatches(mat.id, currentProcessId);
-          const validStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) >= 0).reduce((sum, b) => sum + b.remainingQty, 0);
-          const expiredStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) < 0).reduce((sum, b) => sum + b.remainingQty, 0);
+          activeBatches = getMaterialBatches(mat.id, currentProcessId);
+          validStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) >= 0).reduce((sum, b) => sum + b.remainingQty, 0);
+          expiredStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) < 0).reduce((sum, b) => sum + b.remainingQty, 0);
           
           stockText = '可用庫存: ' + validStock;
           if (expiredStock > 0) {
-            stockText += ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
+            stockText = '可用庫存: ' + validStock + ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
           }
+          const info = getMaterialStatus(mat, currentProcessId);
+          status = info.status; // 'ok', 'warn', 'danger'
+        } else {
+          status = totalSter > 0 ? 'ok' : 'danger';
         }
 
-        html += '<div class="material-tile edit-tile" data-id="' + mat.id + '">' +
-          '<div class="tile-actions-overlay">' +
+        // Available Qty to display in the badge
+        const badgeQty = validStock;
+        let badgeClass = 'badge-ok';
+        if (status === 'danger' || badgeQty === 0) {
+          badgeClass = 'badge-danger';
+        } else if (status === 'warn') {
+          badgeClass = 'badge-warn';
+        }
+
+        // Render stock badge
+        const badgeHtml = '<div class="tile-stock-badge ' + badgeClass + '">' + badgeQty + '</div>';
+
+        // Render detailed table for normal mode if expanded
+        let detailPanelHtml = '';
+        let expandedClass = '';
+        if (!inventoryEditMode && currentProcessId && activeBatches.length > 0) {
+          const isExpanded = expandedInventoryCardIds.has(mat.id);
+          if (isExpanded) expandedClass = ' expanded';
+          
+          let detailRowsHtml = '';
+          const sortedBatches = [...activeBatches].sort((a, b) => b.sterilizationDate.localeCompare(a.sterilizationDate) || a.id - b.id);
+          
+          sortedBatches.forEach(b => {
+            const isNative = b.processId === currentProcessId;
+            const sourceText = isNative ? '本批次' : getProcessName(b.processId);
+            const delBtnHtml = '<button class="btn-del-batch-record" data-id="' + b.id + '" title="刪除滅菌紀錄">🗑️</button>';
+            
+            detailRowsHtml += '<tr>' +
+              '<td>' + escapeHtml(sourceText) + '</td>' +
+              '<td>' + formatDate(b.sterilizationDate) + '</td>' +
+              '<td>' + formatDate(b.expiryDate) + '</td>' +
+              '<td>' + b.remainingQty + ' 個</td>' +
+              '<td>' + delBtnHtml + '</td>' +
+              '</tr>';
+          });
+          
+          detailPanelHtml = '<div class="tile-details-panel" style="display: ' + (isExpanded ? 'block' : 'none') + ';">' +
+            '<table class="details-table">' +
+            '<thead>' +
+            '<tr>' +
+            '<th>來源批次</th>' +
+            '<th>滅菌日</th>' +
+            '<th>到期日</th>' +
+            '<th>庫存</th>' +
+            '<th>操作</th>' +
+            '</tr>' +
+            '</thead>' +
+            '<tbody>' +
+            detailRowsHtml +
+            '</tbody>' +
+            '</table>' +
+            '</div>';
+        }
+
+        // Tile action overlay is only shown when in Edit Mode
+        const actionsOverlayHtml = inventoryEditMode ? 
+          ('<div class="tile-actions-overlay" style="display: flex;">' +
           '<button class="tile-action-btn btn-edit-mat" data-id="' + mat.id + '" title="編輯">✏️</button>' +
           '<button class="tile-action-btn btn-del-mat" data-id="' + mat.id + '" title="刪除">🗑️</button>' +
-          '</div>' +
+          '</div>') : '';
+
+        html += '<div class="material-tile' + expandedClass + '" data-id="' + mat.id + '">' +
+          badgeHtml +
+          actionsOverlayHtml +
           '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
           '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
-          '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ ' + stockText + '</div>' +
+          '<div class="tile-stock">' + stockText + '</div>' +
+          detailPanelHtml +
           '</div>';
       });
       html += '</div></div>';
@@ -1369,16 +1457,61 @@
     container.innerHTML = html;
 
     // Event listeners
+    container.querySelectorAll('.material-tile').forEach(tile => {
+      const id = Number(tile.getAttribute('data-id'));
+      
+      tile.addEventListener('click', function (e) {
+        if (inventoryEditMode) {
+          if (e.target.closest('.btn-del-mat') || e.target.closest('.btn-edit-mat')) return;
+          editMaterial(id);
+        } else {
+          if (e.target.closest('.btn-del-batch-record')) return;
+          
+          const panel = this.querySelector('.tile-details-panel');
+          if (panel) {
+            const isVisible = panel.style.display === 'block';
+            panel.style.display = isVisible ? 'none' : 'block';
+            this.classList.toggle('expanded', !isVisible);
+            if (!isVisible) {
+              expandedInventoryCardIds.add(id);
+            } else {
+              expandedInventoryCardIds.delete(id);
+            }
+          }
+        }
+      });
+    });
+
     container.querySelectorAll('.btn-edit-mat').forEach(btn => {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         editMaterial(Number(this.getAttribute('data-id')));
       });
     });
+
     container.querySelectorAll('.btn-del-mat').forEach(btn => {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         deleteMaterial(Number(this.getAttribute('data-id')));
+      });
+    });
+
+    container.querySelectorAll('.btn-del-batch-record').forEach(btn => {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        const recId = Number(this.getAttribute('data-id'));
+        showConfirm('確定刪除此批次的滅菌紀錄？\n該筆紀錄的可用庫存將歸零，相關的使用紀錄也將被刪除。', function () {
+          performCloudSyncAction(() => {
+            sterilizationRecords = sterilizationRecords.filter(r => r.id !== recId);
+            usageRecords = usageRecords.filter(r => r.sterilizationRecordId !== recId);
+          }, () => {
+            showToast('滅菌紀錄已刪除');
+            renderMaterialsList();
+            renderDashboard();
+            renderSterilizationHistory();
+            renderUsageHistory();
+          });
+        });
       });
     });
   }
@@ -1764,10 +1897,16 @@
       btn.addEventListener('click', function () {
         const recId = Number(this.getAttribute('data-id'));
         showConfirm('確定刪除此滅菌紀錄？', function () {
-          sterilizationRecords = sterilizationRecords.filter(r => r.id !== recId);
-          saveData('sterilizationRecords');
-          showToast('紀錄已刪除');
-          renderSterilizationHistory();
+          performCloudSyncAction(() => {
+            sterilizationRecords = sterilizationRecords.filter(r => r.id !== recId);
+            usageRecords = usageRecords.filter(r => r.sterilizationRecordId !== recId);
+          }, () => {
+            showToast('紀錄已刪除');
+            renderSterilizationHistory();
+            renderMaterialsList();
+            renderDashboard();
+            renderUsageHistory();
+          });
         });
       });
     });
@@ -2214,11 +2353,15 @@
       btn.addEventListener('click', function () {
         const recId = Number(this.getAttribute('data-id'));
         showConfirm('確定刪除此使用紀錄？', function () {
-          usageRecords = usageRecords.filter(r => r.id !== recId);
-          saveData('usageRecords');
-          showToast('紀錄已刪除');
-          renderUsageTiles();
-          renderUsageHistory();
+          performCloudSyncAction(() => {
+            usageRecords = usageRecords.filter(r => r.id !== recId);
+          }, () => {
+            showToast('紀錄已刪除');
+            renderUsageTiles();
+            renderUsageHistory();
+            renderMaterialsList();
+            renderDashboard();
+          });
         });
       });
     });

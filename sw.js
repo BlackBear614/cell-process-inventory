@@ -1,9 +1,9 @@
-const CACHE_NAME = 'cell-inventory-v18';
+const CACHE_NAME = 'cell-inventory-v19';
 const urlsToCache = [
   './',
   './index.html',
-  './style.css?v=18',
-  './app.js?v=18',
+  './style.css?v=19',
+  './app.js?v=19',
   './manifest.json'
 ];
 

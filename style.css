@@ -762,11 +762,7 @@ input, select, textarea, button {
   gap: 12px;
 }
 
-/* Specific styling for dashboard page to make cards full width on mobile */
-#dashboard-materials .tile-group-grid {
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
+
 
 /* Individual Material Tile */
 .material-tile {
@@ -2101,9 +2097,7 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   .tile-group-grid {
     grid-template-columns: repeat(3, 1fr);
   }
-  #dashboard-materials .tile-group-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+
   .stats-row {
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
@@ -2130,18 +2124,14 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   .tile-group-grid {
     grid-template-columns: repeat(4, 1fr);
   }
-  #dashboard-materials .tile-group-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+
 }
 
 @media (min-width: 1024px) {
   .tile-group-grid {
     grid-template-columns: repeat(5, 1fr);
   }
-  #dashboard-materials .tile-group-grid {
-    grid-template-columns: repeat(4, 1fr);
-  }
+
 }
 
 /* Landscape adjustment */
@@ -2504,6 +2494,7 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   height: auto !important;
   background: rgba(255, 255, 255, 0.06) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
+  grid-column: 1 / -1;
 }
 
 /* History Filter Pills */
@@ -2691,3 +2682,57 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Stock badge for inventory tiles */
+.tile-stock-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  z-index: 10;
+  line-height: 1;
+}
+.tile-stock-badge.badge-ok {
+  background: var(--success);
+  color: #fff;
+}
+.tile-stock-badge.badge-warn {
+  background: var(--warning);
+  color: #fff;
+}
+.tile-stock-badge.badge-danger {
+  background: var(--danger);
+  color: #fff;
+  animation: badge-pulse 2s infinite;
+}
+
+@keyframes badge-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 59, 48, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+}
+
+/* Header button active state for edit toggling */
+.header-btn.active {
+  background: var(--primary-dim) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 10px var(--primary-glow) !important;
+}
+
+/* Adjustments for batch record deletion buttons */
+.btn-del-batch-record {
+  transition: transform 0.2s ease;
+}
+.btn-del-batch-record:hover {
+  transform: scale(1.2);
+}
+
