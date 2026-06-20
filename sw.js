@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cell-inventory-v13';
+const CACHE_NAME = 'cell-inventory-v14';
 const urlsToCache = [
   './',
   './index.html',

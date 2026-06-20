@@ -508,9 +508,9 @@ input, select, textarea, button {
 }
 
 .process-days {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 .day-badge {
@@ -518,11 +518,13 @@ input, select, textarea, button {
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 8px 14px;
+  padding: 8px 4px;
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  min-width: 72px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   transition: all var(--transition);
 }
 
@@ -540,8 +542,8 @@ input, select, textarea, button {
 }
 
 .day-badge.small {
-  padding: 5px 10px;
-  min-width: 58px;
+  padding: 5px 2px;
+  min-width: 0;
 }
 
 .day-badge.small .day-label {
@@ -583,8 +585,8 @@ input, select, textarea, button {
    ============================================ */
 .stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
   margin-bottom: 16px;
 }
 
@@ -743,8 +745,14 @@ input, select, textarea, button {
 
 .tile-group-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* Specific styling for dashboard page to make cards full width on mobile */
+#dashboard-materials .tile-group-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
 }
 
 /* Individual Material Tile */
@@ -2031,25 +2039,23 @@ input, select, textarea, button {
 /* ============================================
    Responsive / Larger Screens
    ============================================ */
-@media (min-width: 420px) {
+@media (min-width: 480px) {
   .tile-group-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
-
+  #dashboard-materials .tile-group-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .stats-row {
+    grid-template-columns: repeat(4, 1fr);
     gap: 10px;
   }
-
   .icon-picker {
     gap: 10px;
   }
 }
 
 @media (min-width: 600px) {
-  .tile-group-grid {
-    grid-template-columns: repeat(5, 1fr);
-  }
-
   .page {
     padding-left: 24px;
     padding-right: 24px;
@@ -2059,6 +2065,24 @@ input, select, textarea, button {
     border-radius: var(--radius-xl);
     margin: auto;
     max-height: 80vh;
+  }
+}
+
+@media (min-width: 768px) {
+  .tile-group-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  #dashboard-materials .tile-group-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .tile-group-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  #dashboard-materials .tile-group-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -2555,4 +2579,25 @@ input, select, textarea, button {
   color: var(--text-secondary);
   pointer-events: none;
   font-size: 14px;
+}
+
+/* System Actions Card Styles */
+.system-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+.system-actions button {
+  padding: 10px 14px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.system-actions #btn-reset-system {
+  grid-column: span 2;
 }

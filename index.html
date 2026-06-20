@@ -125,14 +125,14 @@
           <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
             建議定期備份資料。若 iOS 系統因長時間未使用清除瀏覽器快取，可透過還原功能回復所有歷史紀錄。
           </p>
-          <div class="system-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-            <button class="btn-primary" id="btn-export-backup" style="flex: 1; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+          <div class="system-actions">
+            <button class="btn-primary" id="btn-export-backup">
               💾 備份資料 (JSON)
             </button>
-            <button class="btn-secondary" id="btn-import-trigger" style="flex: 1; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <button class="btn-secondary" id="btn-import-trigger">
               📤 還原資料
             </button>
-            <button class="btn-danger" id="btn-reset-system" style="padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <button class="btn-danger" id="btn-reset-system">
               ⚠️ 重置
             </button>
             <input type="file" id="input-import-backup" accept=".json" style="display: none;">
