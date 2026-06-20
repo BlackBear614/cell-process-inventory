@@ -578,7 +578,7 @@
       const el = document.getElementById('preview-' + day.toLowerCase());
       if (el) {
         const actual = addDays(dateStr, DAY_OFFSETS[day]);
-        el.textContent = day + ': ' + formatDate(actual);
+        el.textContent = formatShortDate(actual);
       }
     });
   }
@@ -687,7 +687,7 @@
     document.getElementById('process-date-title').textContent = proc.name;
     PROCESS_DAYS.forEach(day => {
       const el = document.getElementById('day-' + day.toLowerCase());
-      if (el) el.textContent = formatDate(getProcessDayDate(day, proc));
+      if (el) el.textContent = formatShortDate(getProcessDayDate(day, proc));
     });
 
     // Highlight today's day
@@ -839,19 +839,18 @@
         const info = item.info;
 
         const batches = getMaterialBatches(mat.id, currentProcessId);
-        const groupedByExpiry = {};
+        const groupedByDays = {};
         let minDays = Infinity;
         batches.forEach(b => {
-          const date = b.expiryDate;
-          if (!groupedByExpiry[date]) groupedByExpiry[date] = 0;
-          groupedByExpiry[date] += b.remainingQty;
+          const days = getDaysRemaining(b.expiryDate);
+          if (!groupedByDays[days]) groupedByDays[days] = 0;
+          groupedByDays[days] += b.remainingQty;
         });
 
-        const sortedExpiryDates = Object.keys(groupedByExpiry).sort();
+        const sortedDays = Object.keys(groupedByDays).map(Number).sort((a, b) => a - b);
         const batchTexts = [];
-        sortedExpiryDates.forEach(expiryDate => {
-          const qty = groupedByExpiry[expiryDate];
-          const days = getDaysRemaining(expiryDate);
+        sortedDays.forEach(days => {
+          const qty = groupedByDays[days];
           if (days < minDays) minDays = days;
           let text = qty + '個';
           if (days < 0) {
@@ -1764,22 +1763,36 @@
         if (batches.length > 0) {
           const isSelected = usageSelectedIds.has(mat.id);
 
+          // Group active batches by processId and expiryDate to merge identical day/process items
+          const grouped = {};
+          batches.forEach(b => {
+            const key = b.processId + '_' + b.expiryDate;
+            if (!grouped[key]) {
+              grouped[key] = {
+                processId: b.processId,
+                expiryDate: b.expiryDate,
+                remainingQty: 0
+              };
+            }
+            grouped[key].remainingQty += b.remainingQty;
+          });
+
+          const groupedBatches = Object.values(grouped);
+
           // Sort batches: prioritize native batches of the selected process, then sort by expiry date (FIFO)
-          batches.sort((a, b) => {
+          groupedBatches.sort((a, b) => {
             const aIsNative = a.processId === processId;
             const bIsNative = b.processId === processId;
             if (aIsNative && !bIsNative) return -1;
             if (!aIsNative && bIsNative) return 1;
-            const expiryComp = a.expiryDate.localeCompare(b.expiryDate);
-            if (expiryComp !== 0) return expiryComp;
-            return a.id - b.id;
+            return a.expiryDate.localeCompare(b.expiryDate);
           });
           
-          const defaultBatch = batches[0];
+          const defaultBatch = groupedBatches[0];
           const defaultQty = Math.min(mat.requiredQty, defaultBatch.remainingQty);
 
           let optionsHtml = '';
-          batches.forEach(b => {
+          groupedBatches.forEach(b => {
             const days = getDaysRemaining(b.expiryDate);
             let expiryText = '';
             if (days < 0) {
@@ -1795,7 +1808,7 @@
             const isNative = b.processId === processId;
             const prefix = isNative ? '' : '【借自 ' + procName + '】';
             
-            optionsHtml += '<option value="' + b.id + '" data-qty="' + b.remainingQty + '">' +
+            optionsHtml += '<option value="' + b.processId + '_' + b.expiryDate + '" data-qty="' + b.remainingQty + '">' +
               prefix + expiryText + ' (庫存: ' + b.remainingQty + ')' +
               '</option>';
           });
@@ -1926,21 +1939,21 @@
         hasError = true;
         return;
       }
-      const selectedSterId = Number(select.value);
+      const val = select.value;
+      const parts = val.split('_');
+      if (parts.length !== 2) {
+        hasError = true;
+        return;
+      }
+      const targetProcId = Number(parts[0]);
+      const targetExpiryDate = parts[1];
       
       const input = document.querySelector('#usage-tile-groups .tile-qty-input[data-id="' + materialId + '"]');
       const qty = input ? parseInt(input.value, 10) || 1 : 1;
       
       const batches = getMaterialBatches(materialId, processId, true);
-      const batch = batches.find(b => b.id === selectedSterId);
-
-      if (!batch) {
-        showToast('找不到指定的滅菌批次');
-        hasError = true;
-        return;
-      }
-
-      const stock = batch.remainingQty;
+      const matches = batches.filter(b => b.processId === targetProcId && b.expiryDate === targetExpiryDate);
+      const stock = matches.reduce((sum, b) => sum + b.remainingQty, 0);
 
       if (qty > stock) {
         const mat = materials.find(m => m.id === materialId);
@@ -1949,14 +1962,25 @@
         return;
       }
 
-      usageRecords.push({
-        id: generateId(),
-        processId: processId,
-        materialId: materialId,
-        sterilizationRecordId: batch.id,
-        qty: qty,
-        date: today,
-      });
+      // Deduct from matches using FIFO order (by id)
+      matches.sort((a, b) => a.id - b.id);
+      let usageLeft = qty;
+      for (let i = 0; i < matches.length; i++) {
+        const batch = matches[i];
+        const deduct = Math.min(batch.remainingQty, usageLeft);
+        if (deduct > 0) {
+          usageRecords.push({
+            id: generateId(),
+            processId: processId,
+            materialId: materialId,
+            sterilizationRecordId: batch.id,
+            qty: deduct,
+            date: today,
+          });
+          usageLeft -= deduct;
+        }
+        if (usageLeft <= 0) break;
+      }
     });
 
     if (hasError) return;

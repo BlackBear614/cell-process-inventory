@@ -1794,6 +1794,13 @@ input, select, textarea, button {
 
 .date-input {
   position: relative;
+  width: 100%;
+}
+
+input[type="date"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 input[type="date"].date-input::-webkit-calendar-picker-indicator,
