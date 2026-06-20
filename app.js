@@ -951,25 +951,107 @@
   }
 
   // ─── Material CRUD ──────────────────────────────────────────────────
+  function compressImage(file, callback) {
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const img = new Image();
+      img.onload = function () {
+        const maxDim = 128;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/png');
+        callback(dataUrl);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
   function initMaterialForm() {
     const btnAdd = document.getElementById('btn-add-material');
     const form = document.getElementById('form-material');
+    const fileInput = document.getElementById('input-material-file-icon');
+    const filePreview = document.getElementById('material-file-preview');
+    const imgPreview = document.getElementById('img-file-preview');
+    const btnClearFile = document.getElementById('btn-clear-file-icon');
+    const customIconInput = document.getElementById('input-material-custom-icon');
+    const iconInput = document.getElementById('input-material-icon');
+    const picker = document.getElementById('icon-picker');
 
     if (btnAdd) {
       btnAdd.addEventListener('click', function () {
         document.getElementById('modal-material-title').textContent = '新增耗材';
         document.getElementById('input-material-name').value = '';
         document.getElementById('input-material-icon').value = '📦';
-        const customIconInput = document.getElementById('input-material-custom-icon');
         if (customIconInput) customIconInput.value = '';
         document.getElementById('input-material-qty').value = '1';
         document.getElementById('input-material-day').value = 'D0';
         document.getElementById('input-material-id').value = '';
+        
+        // Reset file upload
+        if (fileInput) fileInput.value = '';
+        if (filePreview) filePreview.style.display = 'none';
+        if (imgPreview) imgPreview.src = '';
+
         // Reset icon picker
         document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
           opt.classList.toggle('selected', opt.getAttribute('data-icon') === '📦');
         });
         openModal('material');
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        compressImage(file, function (compressedDataUrl) {
+          if (iconInput) iconInput.value = compressedDataUrl;
+          if (imgPreview) imgPreview.src = compressedDataUrl;
+          if (filePreview) filePreview.style.display = 'flex';
+
+          // Clear emoji picker selection & custom icon text input
+          if (picker) {
+            picker.querySelectorAll('.icon-option').forEach(o => o.classList.remove('selected'));
+          }
+          if (customIconInput) {
+            customIconInput.value = '';
+          }
+        });
+      });
+    }
+
+    if (btnClearFile) {
+      btnClearFile.addEventListener('click', function () {
+        if (fileInput) fileInput.value = '';
+        if (filePreview) filePreview.style.display = 'none';
+        if (imgPreview) imgPreview.src = '';
+        if (iconInput) iconInput.value = '📦';
+
+        // Reset to default emoji selection in picker
+        if (picker) {
+          picker.querySelectorAll('.icon-option').forEach(opt => {
+            opt.classList.toggle('selected', opt.getAttribute('data-icon') === '📦');
+          });
+        }
+        if (customIconInput) {
+          customIconInput.value = '';
+        }
       });
     }
 
@@ -1029,6 +1111,14 @@
       if (customIconInput) {
         customIconInput.value = '';
       }
+
+      // Clear file upload
+      const fileInput = document.getElementById('input-material-file-icon');
+      const filePreview = document.getElementById('material-file-preview');
+      const imgPreview = document.getElementById('img-file-preview');
+      if (fileInput) fileInput.value = '';
+      if (filePreview) filePreview.style.display = 'none';
+      if (imgPreview) imgPreview.src = '';
     });
 
     const customIconInput = document.getElementById('input-material-custom-icon');
@@ -1037,6 +1127,16 @@
         const val = this.value.trim();
         picker.querySelectorAll('.icon-option').forEach(o => o.classList.remove('selected'));
         document.getElementById('input-material-icon').value = val || '📦';
+
+        // Clear file upload
+        if (val) {
+          const fileInput = document.getElementById('input-material-file-icon');
+          const filePreview = document.getElementById('material-file-preview');
+          const imgPreview = document.getElementById('img-file-preview');
+          if (fileInput) fileInput.value = '';
+          if (filePreview) filePreview.style.display = 'none';
+          if (imgPreview) imgPreview.src = '';
+        }
       });
     }
   }
@@ -1051,17 +1151,34 @@
     document.getElementById('input-material-day').value = mat.processDay;
     document.getElementById('input-material-id').value = mat.id;
 
-    // Set custom icon field if not in presets
+    const fileInput = document.getElementById('input-material-file-icon');
+    const filePreview = document.getElementById('material-file-preview');
+    const imgPreview = document.getElementById('img-file-preview');
     const customIconInput = document.getElementById('input-material-custom-icon');
+
+    if (fileInput) fileInput.value = '';
+
+    const isImage = mat.icon && (mat.icon.startsWith('data:image/') || mat.icon.startsWith('http') || mat.icon.startsWith('blob:'));
     const isPreset = ICON_OPTIONS.includes(mat.icon);
-    if (customIconInput) {
-      customIconInput.value = isPreset ? '' : mat.icon;
+
+    if (isImage) {
+      if (customIconInput) customIconInput.value = '';
+      if (filePreview) filePreview.style.display = 'flex';
+      if (imgPreview) imgPreview.src = mat.icon;
+      document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
+        opt.classList.remove('selected');
+      });
+    } else {
+      if (filePreview) filePreview.style.display = 'none';
+      if (imgPreview) imgPreview.src = '';
+      if (customIconInput) {
+        customIconInput.value = isPreset ? '' : mat.icon;
+      }
+      document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
+        opt.classList.toggle('selected', isPreset && opt.getAttribute('data-icon') === mat.icon);
+      });
     }
 
-    // Set icon picker selection
-    document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
-      opt.classList.toggle('selected', isPreset && opt.getAttribute('data-icon') === mat.icon);
-    });
     openModal('material');
   }
 
