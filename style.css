@@ -574,9 +574,9 @@ input, select, textarea, button {
 }
 
 .preview-days {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
 }
 
 
@@ -1740,7 +1740,10 @@ input, select, textarea, button {
 .form-group input[type="date"],
 .form-group select,
 .form-group textarea {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.05);
@@ -1775,6 +1778,7 @@ input, select, textarea, button {
 
 .form-row {
   display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
@@ -1782,10 +1786,17 @@ input, select, textarea, button {
   flex: 1;
 }
 
+@media (min-width: 480px) {
+  .form-row {
+    flex-direction: row;
+  }
+}
+
 .date-input {
   position: relative;
 }
 
+input[type="date"].date-input::-webkit-calendar-picker-indicator,
 .date-input input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(0.7);
   cursor: pointer;
@@ -1887,7 +1898,7 @@ input, select, textarea, button {
   position: fixed;
   top: calc(var(--safe-top) + 16px);
   left: 50%;
-  transform: translateX(-50%) translateY(-120%);
+  transform: translateX(-50%) translateY(calc(-100% - var(--safe-top) - 30px));
   padding: 12px 24px;
   border-radius: var(--radius-pill);
   background: rgba(20, 20, 45, 0.95);

@@ -138,8 +138,8 @@
     return 'valid';
   }
 
-  function getMaterialBatches(materialId, processId) {
-    const sterRecs = sterilizationRecords.filter(r => r.processId === processId && r.materialId === materialId);
+  function getMaterialBatches(materialId, processId, includeOthers = true) {
+    const sterRecs = sterilizationRecords.filter(r => (includeOthers || r.processId === processId) && r.materialId === materialId);
     const batches = sterRecs.map(r => ({
       id: r.id,
       materialId: r.materialId,
@@ -150,20 +150,25 @@
       expiryDate: r.expiryDate
     }));
 
-    const useRecs = usageRecords.filter(r => r.processId === processId && r.materialId === materialId);
+    const batchIds = new Set(batches.map(b => b.id));
+    const useRecs = usageRecords.filter(r => r.materialId === materialId && r.sterilizationRecordId && batchIds.has(r.sterilizationRecordId));
 
     useRecs.forEach(u => {
-      if (u.sterilizationRecordId) {
-        const batch = batches.find(b => b.id === u.sterilizationRecordId);
-        if (batch) {
-          batch.remainingQty = Math.max(0, batch.remainingQty - u.qty);
-        }
+      const batch = batches.find(b => b.id === u.sterilizationRecordId);
+      if (batch) {
+        batch.remainingQty = Math.max(0, batch.remainingQty - u.qty);
       }
     });
 
-    const sortedForFifo = [...batches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.id - b.id);
-    useRecs.forEach(u => {
-      if (!u.sterilizationRecordId) {
+    const fifoUseRecs = usageRecords.filter(r => r.materialId === materialId && !r.sterilizationRecordId);
+    const processesWithLoadedBatches = new Set(batches.map(b => b.processId));
+
+    processesWithLoadedBatches.forEach(pId => {
+      const pUseRecs = fifoUseRecs.filter(r => r.processId === pId);
+      const pBatches = batches.filter(b => b.processId === pId);
+      const sortedForFifo = [...pBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.id - b.id);
+      
+      pUseRecs.forEach(u => {
         let usageLeft = u.qty;
         for (let i = 0; i < sortedForFifo.length; i++) {
           const batch = sortedForFifo[i];
@@ -174,10 +179,15 @@
             if (usageLeft <= 0) break;
           }
         }
-      }
+      });
     });
 
     return batches.filter(b => b.remainingQty > 0);
+  }
+
+  function getProcessName(processId) {
+    const proc = processes.find(p => p.id === processId);
+    return proc ? proc.name : '未知批次';
   }
 
   function bindQtyAdjustButtons(container) {
@@ -872,7 +882,10 @@
           return (dashboardSortOrder === 'desc' ? -1 : 1) * comp || (a.id - b.id);
         });
         sortedBatches.forEach(b => {
+          const isNative = b.processId === currentProcessId;
+          const sourceText = isNative ? '本批次' : getProcessName(b.processId);
           detailRowsHtml += '<tr>' +
+            '<td>' + escapeHtml(sourceText) + '</td>' +
             '<td>' + formatDate(b.sterilizationDate) + '</td>' +
             '<td>' + formatDate(b.expiryDate) + '</td>' +
             '<td>' + b.remainingQty + ' 個</td>' +
@@ -886,6 +899,7 @@
             '<table class="details-table">' +
             '<thead>' +
             '<tr>' +
+            '<th>來源批次</th>' +
             '<th class="sortable-header" style="cursor: pointer; user-select: none;" title="點擊切換升降序">滅菌日 ' + arrow + '</th>' +
             '<th>到期日</th>' +
             '<th>庫存</th>' +
@@ -1744,31 +1758,29 @@
       html += '<div class="tile-group-header">' + day + ' — ' + formatShortDate(dayDate) + '</div>';
       html += '<div class="tile-group-grid">';
       items.forEach(mat => {
-        const batches = getMaterialBatches(mat.id, processId);
+        const batches = getMaterialBatches(mat.id, processId, true);
         const totalStock = batches.reduce((sum, b) => sum + b.remainingQty, 0);
 
         if (batches.length > 0) {
           const isSelected = usageSelectedIds.has(mat.id);
 
-          // Group active batches by expiryDate
-          const groupedByExpiry = {};
-          batches.forEach(b => {
-            const date = b.expiryDate;
-            if (!groupedByExpiry[date]) {
-              groupedByExpiry[date] = 0;
-            }
-            groupedByExpiry[date] += b.remainingQty;
+          // Sort batches: prioritize native batches of the selected process, then sort by expiry date (FIFO)
+          batches.sort((a, b) => {
+            const aIsNative = a.processId === processId;
+            const bIsNative = b.processId === processId;
+            if (aIsNative && !bIsNative) return -1;
+            if (!aIsNative && bIsNative) return 1;
+            const expiryComp = a.expiryDate.localeCompare(b.expiryDate);
+            if (expiryComp !== 0) return expiryComp;
+            return a.id - b.id;
           });
-
-          const sortedExpiryDates = Object.keys(groupedByExpiry).sort();
-          const firstExpiryDate = sortedExpiryDates[0];
-          const firstTotalQty = groupedByExpiry[firstExpiryDate];
-          const defaultQty = Math.min(mat.requiredQty, firstTotalQty);
+          
+          const defaultBatch = batches[0];
+          const defaultQty = Math.min(mat.requiredQty, defaultBatch.remainingQty);
 
           let optionsHtml = '';
-          sortedExpiryDates.forEach(expiryDate => {
-            const qty = groupedByExpiry[expiryDate];
-            const days = getDaysRemaining(expiryDate);
+          batches.forEach(b => {
+            const days = getDaysRemaining(b.expiryDate);
             let expiryText = '';
             if (days < 0) {
               expiryText = '已過期';
@@ -1777,7 +1789,15 @@
             } else {
               expiryText = '剩' + days + '天';
             }
-            optionsHtml += '<option value="' + expiryDate + '" data-qty="' + qty + '">' + expiryText + ' (庫存: ' + qty + ')</option>';
+            
+            // Check if it belongs to current process or is borrowed
+            const procName = getProcessName(b.processId);
+            const isNative = b.processId === processId;
+            const prefix = isNative ? '' : '【借自 ' + procName + '】';
+            
+            optionsHtml += '<option value="' + b.id + '" data-qty="' + b.remainingQty + '">' +
+              prefix + expiryText + ' (庫存: ' + b.remainingQty + ')' +
+              '</option>';
           });
 
           html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '">' +
@@ -1794,7 +1814,7 @@
             '<span class="tile-qty-label">數量</span>' +
             '<div class="qty-adjust-wrap">' +
             '<button type="button" class="btn-qty-adj btn-dec">-</button>' +
-            '<input type="number" class="tile-qty-input" min="1" max="' + firstTotalQty + '" value="' + defaultQty + '" data-id="' + mat.id + '">' +
+            '<input type="number" class="tile-qty-input" min="1" max="' + defaultBatch.remainingQty + '" value="' + defaultQty + '" data-id="' + mat.id + '">' +
             '<button type="button" class="btn-qty-adj btn-inc">+</button>' +
             '</div>' +
             '</div>' +
@@ -1906,14 +1926,21 @@
         hasError = true;
         return;
       }
-      const selectedExpiryDate = select.value;
+      const selectedSterId = Number(select.value);
       
       const input = document.querySelector('#usage-tile-groups .tile-qty-input[data-id="' + materialId + '"]');
       const qty = input ? parseInt(input.value, 10) || 1 : 1;
       
-      const batches = getMaterialBatches(materialId, processId);
-      const matches = batches.filter(b => b.expiryDate === selectedExpiryDate);
-      const stock = matches.reduce((sum, b) => sum + b.remainingQty, 0);
+      const batches = getMaterialBatches(materialId, processId, true);
+      const batch = batches.find(b => b.id === selectedSterId);
+
+      if (!batch) {
+        showToast('找不到指定的滅菌批次');
+        hasError = true;
+        return;
+      }
+
+      const stock = batch.remainingQty;
 
       if (qty > stock) {
         const mat = materials.find(m => m.id === materialId);
@@ -1922,25 +1949,14 @@
         return;
       }
 
-      // Deduct from matches using FIFO order
-      matches.sort((a, b) => a.id - b.id);
-      let usageLeft = qty;
-      for (let i = 0; i < matches.length; i++) {
-        const batch = matches[i];
-        const deduct = Math.min(batch.remainingQty, usageLeft);
-        if (deduct > 0) {
-          usageRecords.push({
-            id: generateId(),
-            processId: processId,
-            materialId: materialId,
-            sterilizationRecordId: batch.id,
-            qty: deduct,
-            date: today,
-          });
-          usageLeft -= deduct;
-        }
-        if (usageLeft <= 0) break;
-      }
+      usageRecords.push({
+        id: generateId(),
+        processId: processId,
+        materialId: materialId,
+        sterilizationRecordId: batch.id,
+        qty: qty,
+        date: today,
+      });
     });
 
     if (hasError) return;
