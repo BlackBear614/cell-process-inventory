@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0a1a">
+  <meta name="description" content="細胞製程滅菌庫存管理系統 - 追蹤物料滅菌狀態、庫存量和有效期限">
+  <title>滅菌庫存管理</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ===== PAGE: Dashboard ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>製程總覽</h1>
+        <p class="page-subtitle">Dashboard</p>
+      </div>
+      <div class="page-content">
+        <!-- Process Batch Selector -->
+        <div class="card glass-card process-selector-card">
+          <div class="card-header-row">
+            <div class="card-icon-wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <h2>製程批次</h2>
+            <button class="header-btn-sm" id="btn-add-process" aria-label="新增製程">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+          </div>
+          <div class="process-pills-scroll" id="process-pills">
+            <!-- Process pills rendered by JS -->
+          </div>
+        </div>
+
+        <!-- Process Date Info -->
+        <div class="card glass-card process-card" id="process-date-card" style="display:none;">
+          <div class="card-header-row">
+            <div class="card-icon-wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <h2 id="process-date-title">製程日期</h2>
+            <button class="header-btn-sm edit-process-btn" id="btn-edit-process" aria-label="編輯製程">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          </div>
+          <div class="process-days" id="process-days">
+            <div class="day-badge"><span class="day-label">D0</span><span class="day-date" id="day-d0">--</span></div>
+            <div class="day-badge"><span class="day-label">D3</span><span class="day-date" id="day-d3">--</span></div>
+            <div class="day-badge"><span class="day-label">D11</span><span class="day-date" id="day-d11">--</span></div>
+            <div class="day-badge"><span class="day-label">D14</span><span class="day-date" id="day-d14">--</span></div>
+          </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="stats-row">
+          <div class="stat-card glass-card">
+            <div class="stat-number" id="stat-total">0</div>
+            <div class="stat-label">物料項目</div>
+          </div>
+          <div class="stat-card glass-card stat-ok">
+            <div class="stat-number" id="stat-ok">0</div>
+            <div class="stat-label">充足</div>
+          </div>
+          <div class="stat-card glass-card stat-warn">
+            <div class="stat-number" id="stat-warn">0</div>
+            <div class="stat-label">注意</div>
+          </div>
+          <div class="stat-card glass-card stat-danger">
+            <div class="stat-number" id="stat-danger">0</div>
+            <div class="stat-label">不足/過期</div>
+          </div>
+        </div>
+
+        <!-- Chart Card (NEW) -->
+        <div class="card glass-card chart-card" id="dashboard-chart-card" style="display:none;">
+          <div class="card-header-row">
+            <div class="card-icon-wrap">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            </div>
+            <h2>庫存狀態分析</h2>
+          </div>
+          <div class="chart-container">
+            <div class="stacked-bar">
+              <div class="bar-segment bar-ok" style="width: 0%;"></div>
+              <div class="bar-segment bar-warn" style="width: 0%;"></div>
+              <div class="bar-segment bar-danger" style="width: 0%;"></div>
+            </div>
+            <div class="chart-legends">
+              <div class="legend-item"><span class="legend-dot dot-ok"></span> 充足 (<span id="chart-ok-pct">0%</span>)</div>
+              <div class="legend-item"><span class="legend-dot dot-warn"></span> 注意 (<span id="chart-warn-pct">0%</span>)</div>
+              <div class="legend-item"><span class="legend-dot dot-danger"></span> 不足/過期 (<span id="chart-danger-pct">0%</span>)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Material Status Cards -->
+        <div class="section-header">
+          <h3 class="section-title">物料狀態</h3>
+          <div class="filter-pills" id="filter-pills">
+            <button class="pill active" data-filter="all">全部</button>
+            <button class="pill" data-filter="D0">D0</button>
+            <button class="pill" data-filter="D3">D3</button>
+            <button class="pill" data-filter="D11">D11</button>
+            <button class="pill" data-filter="D14">D14</button>
+          </div>
+        </div>
+        <div id="dashboard-materials"></div>
+
+        <!-- System Data Management Card -->
+        <div class="card glass-card system-settings-card" style="margin-top: 24px;">
+          <div class="card-header-row">
+            <div class="card-icon-wrap" style="background: rgba(0, 212, 170, 0.1); color: var(--primary);">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </div>
+            <h2>系統設定與備份</h2>
+          </div>
+          <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+            建議定期備份資料。若 iOS 系統因長時間未使用清除瀏覽器快取，可透過還原功能回復所有歷史紀錄。
+          </p>
+          <div class="system-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn-primary" id="btn-export-backup" style="flex: 1; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              💾 備份資料 (JSON)
+            </button>
+            <button class="btn-secondary" id="btn-import-trigger" style="flex: 1; padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              📤 還原資料
+            </button>
+            <button class="btn-danger" id="btn-reset-system" style="padding: 10px 14px; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+              ⚠️ 重置
+            </button>
+            <input type="file" id="input-import-backup" accept=".json" style="display: none;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: Materials ===== -->
+    <div class="page" id="page-materials">
+      <div class="page-header">
+        <h1>庫存清單</h1>
+        <p class="page-subtitle">Inventory</p>
+        <button class="header-btn" id="btn-add-material" aria-label="新增項目">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+      <div class="page-content">
+        <div id="materials-list"></div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: Sterilization (Multi-Select Tile Grid) ===== -->
+    <div class="page" id="page-sterilization">
+      <div class="page-header">
+        <h1>滅菌紀錄</h1>
+        <p class="page-subtitle">Sterilization</p>
+      </div>
+      <div class="page-content">
+        <!-- Process Selector -->
+        <div class="inline-selector glass-card">
+          <label for="ster-process-select">製程批次</label>
+          <select id="ster-process-select"></select>
+        </div>
+
+        <!-- Material Search Bar -->
+        <div class="search-wrapper" id="ster-mat-search-wrapper" style="margin-top: 10px; margin-bottom: 12px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="ster-mat-search-input" class="search-input" placeholder="搜尋欲滅菌物料名稱...">
+        </div>
+
+        <!-- Material Tile Grid grouped by process day -->
+        <div id="ster-tile-groups">
+          <!-- Rendered by JS: tile groups (D0, D3, D11, D14) each with material tiles -->
+        </div>
+
+        <!-- Batch Input Area -->
+        <div class="batch-input-area glass-card" id="ster-batch-input" style="display:none;">
+          <div class="batch-input-header">
+            <span class="batch-input-icon">🧪</span>
+            <span>已選擇 <strong id="ster-selected-count">0</strong> 項物料</span>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="ster-batch-date">滅菌日期</label>
+              <input type="date" id="ster-batch-date" class="date-input">
+            </div>
+            <div class="form-group">
+              <label>有效期限</label>
+              <div class="readonly-value" id="ster-batch-expiry">--</div>
+            </div>
+          </div>
+          <button class="btn-primary btn-full" id="btn-save-sterilization">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            儲存滅菌紀錄
+          </button>
+        </div>
+
+        <!-- History -->
+        <div class="section-header">
+          <h3 class="section-title">滅菌歷史</h3>
+          <button class="header-btn-sm" id="btn-export-sterilization" style="font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 4px;" title="匯出 Excel">
+            📥 匯出 Excel
+          </button>
+        </div>
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="ster-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+        </div>
+        <div id="sterilization-history"></div>
+      </div>
+    </div>
+
+    <!-- ===== PAGE: Usage (Multi-Select Tile Grid) ===== -->
+    <div class="page" id="page-usage">
+      <div class="page-header">
+        <h1>使用紀錄</h1>
+        <p class="page-subtitle">Usage Log</p>
+      </div>
+      <div class="page-content">
+        <!-- Process Selector -->
+        <div class="inline-selector glass-card">
+          <label for="usage-process-select">製程批次</label>
+          <select id="usage-process-select"></select>
+        </div>
+
+        <!-- Material Search Bar -->
+        <div class="search-wrapper" id="usage-mat-search-wrapper" style="margin-top: 10px; margin-bottom: 12px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="usage-mat-search-input" class="search-input" placeholder="搜尋欲使用物料名稱...">
+        </div>
+
+        <!-- Material Tile Grid showing available stock -->
+        <div id="usage-tile-groups">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Batch Input Area -->
+        <div class="batch-input-area glass-card" id="usage-batch-input" style="display:none;">
+          <div class="batch-input-header">
+            <span class="batch-input-icon">📋</span>
+            <span>已選擇 <strong id="usage-selected-count">0</strong> 項物料</span>
+          </div>
+          <button class="btn-primary btn-full" id="btn-save-usage">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            確認使用
+          </button>
+        </div>
+
+        <!-- History -->
+        <div class="section-header">
+          <h3 class="section-title">使用歷史</h3>
+        </div>
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="usage-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+        </div>
+        <div id="usage-history"></div>
+      </div>
+    </div>
+
+    <!-- ===== TAB BAR ===== -->
+    <nav class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-page="dashboard" id="tab-dashboard">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>總覽</span>
+      </button>
+      <button class="tab-btn" data-page="materials" id="tab-materials">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        <span>庫存</span>
+      </button>
+      <button class="tab-btn" data-page="sterilization" id="tab-sterilization">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <span>滅菌</span>
+      </button>
+      <button class="tab-btn" data-page="usage" id="tab-usage">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>使用</span>
+      </button>
+    </nav>
+
+    <!-- ===== MODALS ===== -->
+
+    <!-- Add/Edit Process Modal -->
+    <div class="modal-overlay" id="modal-process">
+      <div class="modal glass-modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2 id="modal-process-title">新增製程批次</h2>
+          <button class="modal-close" data-modal="modal-process" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form id="form-process">
+          <div class="form-group">
+            <label for="input-process-name">批次名稱</label>
+            <input type="text" id="input-process-name" placeholder="例如：Batch 001、第一批次" required>
+          </div>
+          <div class="form-group">
+            <label for="input-process-date">製程起始日 (D0)</label>
+            <input type="date" id="input-process-date" required>
+          </div>
+          <div class="process-preview" id="process-preview">
+            <div class="preview-label">製程日期預覽</div>
+            <div class="process-days preview-days" id="preview-days">
+              <div class="day-badge small"><span class="day-label">D0</span><span class="day-date" id="preview-d0">--</span></div>
+              <div class="day-badge small"><span class="day-label">D3</span><span class="day-date" id="preview-d3">--</span></div>
+              <div class="day-badge small"><span class="day-label">D11</span><span class="day-date" id="preview-d11">--</span></div>
+              <div class="day-badge small"><span class="day-label">D14</span><span class="day-date" id="preview-d14">--</span></div>
+            </div>
+          </div>
+          <input type="hidden" id="input-process-id">
+          <button type="submit" class="btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            儲存
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Add/Edit Material Modal -->
+    <div class="modal-overlay" id="modal-material">
+      <div class="modal glass-modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2 id="modal-material-title">新增物料</h2>
+          <button class="modal-close" data-modal="modal-material" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form id="form-material">
+          <div class="form-group">
+            <label for="input-material-name">物料名稱</label>
+            <input type="text" id="input-material-name" placeholder="例如：鐵架、培養皿" required>
+          </div>
+          <div class="form-group">
+            <label for="input-material-icon">選擇圖示</label>
+            <div class="icon-picker" id="icon-picker">
+              <button type="button" class="icon-option selected" data-icon="🧪">🧪</button>
+              <button type="button" class="icon-option" data-icon="🧫">🧫</button>
+              <button type="button" class="icon-option" data-icon="🔬">🔬</button>
+              <button type="button" class="icon-option" data-icon="🧬">🧬</button>
+              <button type="button" class="icon-option" data-icon="🏗️">🏗️</button>
+              <button type="button" class="icon-option" data-icon="❄️">❄️</button>
+              <button type="button" class="icon-option" data-icon="💉">💉</button>
+              <button type="button" class="icon-option" data-icon="🧴">🧴</button>
+              <button type="button" class="icon-option" data-icon="🫧">🫧</button>
+              <button type="button" class="icon-option" data-icon="⚗️">⚗️</button>
+              <button type="button" class="icon-option" data-icon="🩺">🩺</button>
+              <button type="button" class="icon-option" data-icon="📦">📦</button>
+            </div>
+            <input type="hidden" id="input-material-icon" value="🧪">
+          </div>
+          <div class="form-group">
+            <label for="input-material-custom-icon">或輸入自訂圖示 (Emoji 或文字)</label>
+            <input type="text" id="input-material-custom-icon" placeholder="例如：🩸、🧫、A (選填)" maxlength="2">
+          </div>
+          <div class="form-group">
+            <label for="input-material-file-icon">或上傳自訂圖示 (圖片)</label>
+            <input type="file" id="input-material-file-icon" accept="image/*" class="file-input">
+            <div id="material-file-preview" style="margin-top: 8px; display: none; align-items: center; gap: 10px;">
+              <img id="img-file-preview" src="" style="width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--card-border); object-fit: cover;">
+              <span id="txt-file-preview" style="font-size: 12px; color: var(--text-secondary);">已載入上傳圖示</span>
+              <button type="button" id="btn-clear-file-icon" style="color: var(--danger); font-size: 12px; cursor: pointer; border: none; background: none;">清除</button>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="input-material-qty">需求量</label>
+              <div class="qty-adjust-wrap">
+                <button type="button" class="btn-qty-adj btn-dec">-</button>
+                <input type="number" id="input-material-qty" min="1" value="1" required>
+                <button type="button" class="btn-qty-adj btn-inc">+</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="input-material-day">使用天數</label>
+              <select id="input-material-day">
+                <option value="D0">D0</option>
+                <option value="D3">D3</option>
+                <option value="D11">D11</option>
+                <option value="D14">D14</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" id="input-material-id">
+          <button type="submit" class="btn-primary">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+            儲存
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div class="modal-overlay" id="modal-confirm">
+      <div class="modal glass-modal modal-small">
+        <div class="modal-header">
+          <h2>確認操作</h2>
+        </div>
+        <p id="confirm-message" class="confirm-msg"></p>
+        <div class="modal-actions">
+          <button class="btn-secondary" id="btn-confirm-cancel">取消</button>
+          <button class="btn-danger" id="btn-confirm-ok">確認刪除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+      <span id="toast-message"></span>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
