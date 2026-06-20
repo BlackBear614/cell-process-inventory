@@ -54,6 +54,9 @@
   let expandedCardIds = new Set();
   let expandedInventoryCardIds = new Set();
   let inventoryEditMode = false;
+  let currentInventoryProcessId = 'all';
+  let sterHistoryExpanded = false;
+  let usageHistoryExpanded = false;
   let hasSyncedFromCloud = false;
 
   let lastGeneratedId = 0;
@@ -814,7 +817,7 @@
 
   function getMaterialStatus(material, processId) {
     const proc = processes.find(p => p.id === processId);
-    const batches = getMaterialBatches(material.id, processId);
+    const batches = getMaterialBatches(material.id, processId, false);
     const stock = batches.reduce((s, b) => s + b.remainingQty, 0);
 
     const sterRecs = sterilizationRecords.filter(r => r.processId === processId && r.materialId === material.id);
@@ -944,7 +947,7 @@
         const mat = item.mat;
         const info = item.info;
 
-        const batches = getMaterialBatches(mat.id, currentProcessId);
+        const batches = getMaterialBatches(mat.id, currentProcessId, false);
         const groupedByDays = {};
         let minDays = Infinity;
         batches.forEach(b => {
@@ -1107,6 +1110,15 @@
         inventoryEditMode = !inventoryEditMode;
         this.classList.toggle('active', inventoryEditMode);
         this.textContent = inventoryEditMode ? '✓' : '✏️';
+        renderMaterialsList();
+      });
+    }
+
+    const invSelect = document.getElementById('inv-process-select');
+    if (invSelect) {
+      invSelect.addEventListener('change', function () {
+        const val = this.value;
+        currentInventoryProcessId = val === 'all' ? 'all' : Number(val);
         renderMaterialsList();
       });
     }
@@ -1337,6 +1349,12 @@
     const container = document.getElementById('materials-list');
     if (!container) return;
 
+    populateProcessSelect('inv-process-select', {
+      defaultText: '— 全部批次庫存 —',
+      defaultValue: 'all',
+      selectedId: currentInventoryProcessId
+    });
+
     if (materials.length === 0) {
       container.innerHTML = renderEmptyState('material', 'material');
       return;
@@ -1366,8 +1384,8 @@
         let activeBatches = [];
         let status = 'ok';
 
-        if (currentProcessId) {
-          activeBatches = getMaterialBatches(mat.id, currentProcessId);
+        if (currentInventoryProcessId !== 'all') {
+          activeBatches = getMaterialBatches(mat.id, currentInventoryProcessId, false);
           validStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) >= 0).reduce((sum, b) => sum + b.remainingQty, 0);
           expiredStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) < 0).reduce((sum, b) => sum + b.remainingQty, 0);
           
@@ -1375,19 +1393,31 @@
           if (expiredStock > 0) {
             stockText = '可用庫存: ' + validStock + ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
           }
-          const info = getMaterialStatus(mat, currentProcessId);
-          status = info.status; // 'ok', 'warn', 'danger'
+          stockText = '需求: ' + mat.requiredQty + ' ｜ ' + stockText;
+          if (validStock < mat.requiredQty) {
+            stockText += ' ｜ <span style="color: var(--danger); font-weight: 600;">不足</span>';
+          }
+          
+          const info = getMaterialStatus(mat, currentInventoryProcessId);
+          status = info.status;
         } else {
-          status = totalSter > 0 ? 'ok' : 'danger';
+          activeBatches = getMaterialBatches(mat.id, null, true);
+          validStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) >= 0).reduce((sum, b) => sum + b.remainingQty, 0);
+          expiredStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) < 0).reduce((sum, b) => sum + b.remainingQty, 0);
+          
+          stockText = '可用庫存: ' + validStock;
+          if (expiredStock > 0) {
+            stockText = '可用庫存: ' + validStock + ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
+          }
+          
+          status = validStock > 0 ? 'ok' : 'danger';
         }
 
-        // Render stock badge
         const badgeHtml = '<div class="tile-stock-badge">' + validStock + '</div>';
 
-        // Render detailed table for normal mode if expanded
         let detailPanelHtml = '';
         let expandedClass = '';
-        if (!inventoryEditMode && currentProcessId && activeBatches.length > 0) {
+        if (!inventoryEditMode && activeBatches.length > 0) {
           const isExpanded = expandedInventoryCardIds.has(mat.id);
           if (isExpanded) expandedClass = ' expanded';
           
@@ -1395,8 +1425,8 @@
           const sortedBatches = [...activeBatches].sort((a, b) => b.sterilizationDate.localeCompare(a.sterilizationDate) || a.id - b.id);
           
           sortedBatches.forEach(b => {
-            const isNative = b.processId === currentProcessId;
-            const sourceText = isNative ? '本批次' : getProcessName(b.processId);
+            const isSelectedProc = currentInventoryProcessId !== 'all' ? (b.processId === currentInventoryProcessId) : (currentProcessId && b.processId === currentProcessId);
+            const sourceText = isSelectedProc ? '本批次' : getProcessName(b.processId);
             const delBtnHtml = '<button class="btn-del-batch-record" data-id="' + b.id + '" title="刪除滅菌紀錄">🗑️</button>';
             
             detailRowsHtml += '<tr>' +
@@ -1426,7 +1456,6 @@
             '</div>';
         }
 
-        // Tile action overlay is only shown when in Edit Mode
         const actionsOverlayHtml = inventoryEditMode ? 
           ('<div class="tile-actions-overlay" style="display: flex;">' +
           '<button class="tile-action-btn btn-edit-mat" data-id="' + mat.id + '" title="編輯">✏️</button>' +
@@ -1546,7 +1575,21 @@
     }
 
     if (btnExport) {
-      btnExport.addEventListener('click', exportSterilizationToCsv);
+      btnExport.addEventListener('click', function (e) {
+        e.stopPropagation();
+        exportSterilizationToCsv();
+      });
+    }
+
+    const headerSter = document.getElementById('header-ster-history');
+    const contentSter = document.getElementById('section-ster-history-content');
+    if (headerSter && contentSter) {
+      headerSter.addEventListener('click', function () {
+        sterHistoryExpanded = !sterHistoryExpanded;
+        contentSter.style.display = sterHistoryExpanded ? 'block' : 'none';
+        const toggleIcon = this.querySelector('.toggle-icon');
+        if (toggleIcon) toggleIcon.textContent = sterHistoryExpanded ? '🔼' : '🔽';
+      });
     }
 
     const searchInput = document.getElementById('ster-search-input');
@@ -1941,6 +1984,16 @@
     if (matSearchInput) {
       matSearchInput.addEventListener('input', function () {
         renderUsageTiles();
+      });
+    }
+    const headerUsage = document.getElementById('header-usage-history');
+    const contentUsage = document.getElementById('section-usage-history-content');
+    if (headerUsage && contentUsage) {
+      headerUsage.addEventListener('click', function () {
+        usageHistoryExpanded = !usageHistoryExpanded;
+        contentUsage.style.display = usageHistoryExpanded ? 'block' : 'none';
+        const toggleIcon = this.querySelector('.toggle-icon');
+        if (toggleIcon) toggleIcon.textContent = usageHistoryExpanded ? '🔼' : '🔽';
       });
     }
   }
@@ -2359,13 +2412,17 @@
   }
 
   // ─── Shared Helpers ─────────────────────────────────────────────────
-  function populateProcessSelect(selectId) {
+  function populateProcessSelect(selectId, options = {}) {
     const select = document.getElementById(selectId);
     if (!select) return;
 
-    let html = '<option value="">— 選擇製程批次 —</option>';
+    const defaultText = options.defaultText || '— 選擇製程批次 —';
+    const defaultValue = options.defaultValue !== undefined ? options.defaultValue : '';
+    const selectedId = options.selectedId !== undefined ? options.selectedId : currentProcessId;
+
+    let html = '<option value="' + defaultValue + '"' + (selectedId === defaultValue ? ' selected' : '') + '>' + defaultText + '</option>';
     processes.forEach(proc => {
-      const isSelected = proc.id === currentProcessId;
+      const isSelected = proc.id === selectedId;
       html += '<option value="' + proc.id + '"' + (isSelected ? ' selected' : '') + '>' +
         escapeHtml(proc.name) + ' (' + formatShortDate(proc.startDate) + ')' +
         '</option>';

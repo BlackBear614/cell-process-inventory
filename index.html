@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
   <div id="app">
@@ -135,6 +135,13 @@
         </div>
       </div>
       <div class="page-content">
+        <!-- Process Selector -->
+        <div class="inline-selector glass-card" style="margin-bottom: 12px;">
+          <label for="inv-process-select">製程批次</label>
+          <select id="inv-process-select">
+            <option value="all">全部</option>
+          </select>
+        </div>
         <div id="materials-list"></div>
       </div>
     </div>
@@ -189,17 +196,19 @@
         </div>
 
         <!-- History -->
-        <div class="section-header">
-          <h3 class="section-title">滅菌歷史</h3>
+        <div class="section-header collapsible-header" id="header-ster-history" style="cursor: pointer; user-select: none;">
+          <h3 class="section-title">滅菌歷史 <span class="toggle-icon">🔽</span></h3>
           <button class="header-btn-sm" id="btn-export-sterilization" style="font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 4px;" title="匯出 Excel">
             📥 匯出 Excel
           </button>
         </div>
-        <div class="search-wrapper">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="ster-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+        <div id="section-ster-history-content" style="display: none;">
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="ster-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+          </div>
+          <div id="sterilization-history"></div>
         </div>
-        <div id="sterilization-history"></div>
       </div>
     </div>
 
@@ -243,14 +252,16 @@
         </div>
 
         <!-- History -->
-        <div class="section-header">
-          <h3 class="section-title">使用歷史</h3>
+        <div class="section-header collapsible-header" id="header-usage-history" style="cursor: pointer; user-select: none;">
+          <h3 class="section-title">使用歷史 <span class="toggle-icon">🔽</span></h3>
         </div>
-        <div class="search-wrapper">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="usage-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+        <div id="section-usage-history-content" style="display: none;">
+          <div class="search-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="usage-search-input" class="search-input" placeholder="搜尋日期 (例 2026-06-20) 或物料名稱...">
+          </div>
+          <div id="usage-history"></div>
         </div>
-        <div id="usage-history"></div>
       </div>
     </div>
 
@@ -443,7 +454,7 @@
             </div>
             <div class="info-row" style="display: flex; justify-content: space-between; font-size: 12px;">
               <span class="info-label" style="color: var(--text-secondary);">本地快取版本</span>
-              <span class="info-value" style="color: var(--text-primary);">Cache v20</span>
+              <span class="info-value" style="color: var(--text-primary);">Cache v21</span>
             </div>
             <div class="info-row" style="display: flex; justify-content: space-between; font-size: 12px;">
               <span class="info-label" style="color: var(--text-secondary);">最後同步時間</span>
@@ -481,6 +492,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

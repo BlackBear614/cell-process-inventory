@@ -2721,3 +2721,26 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   transform: scale(1.2);
 }
 
+/* Collapsible History Styles */
+.collapsible-header {
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  margin-left: -8px;
+  margin-right: -8px;
+  transition: background var(--transition-fast);
+}
+.collapsible-header:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.collapsible-header:active {
+  background: rgba(255, 255, 255, 0.08);
+}
+.toggle-icon {
+  margin-left: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: transform var(--transition);
+  display: inline-block;
+}
+
+
