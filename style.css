@@ -1784,6 +1784,7 @@ input, select, textarea, button {
 
 .form-row .form-group {
   flex: 1;
+  min-width: 0;
 }
 
 @media (min-width: 480px) {
@@ -2618,4 +2619,36 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
 }
 .system-actions #btn-reset-system {
   grid-column: span 2;
+}
+
+/* Sync Loading Overlay */
+.sync-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 26, 0.98);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  font-family: var(--font);
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+.sync-loading-overlay.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.sync-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 212, 170, 0.15);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

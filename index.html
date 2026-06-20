@@ -13,7 +13,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <div id="app">
@@ -145,8 +145,11 @@
             <button class="btn-secondary btn-full" id="btn-save-gas-url" style="font-size: 12px; padding: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%;">
               🔗 儲存並同步資料
             </button>
-            <div id="sync-status" style="font-size: 11px; margin-top: 8px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">
-              ⚪ 未設定雲端同步
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+              <div id="sync-status" style="font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">
+                ⚪ 未設定雲端同步
+              </div>
+              <button type="button" class="header-btn-sm" id="btn-manual-sync" style="font-size: 10px; padding: 2px 6px; display: none;">🔄 同步</button>
             </div>
           </div>
         </div>
@@ -427,8 +430,15 @@
     <div class="toast" id="toast">
       <span id="toast-message"></span>
     </div>
+
+    <!-- Sync Loading Overlay -->
+    <div id="sync-loading-overlay" class="sync-loading-overlay hidden">
+      <div class="sync-spinner"></div>
+      <p id="sync-loading-text">雲端資料同步中，請稍候...</p>
+      <button id="btn-skip-sync" class="btn-secondary" style="margin-top: 20px; font-size: 12px; padding: 6px 12px; display: none;">進入離線模式</button>
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

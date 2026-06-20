@@ -52,6 +52,7 @@
   let sterHistorySortOrder = 'desc'; // 'desc' | 'asc'
   let usageHistorySortOrder = 'desc'; // 'desc' | 'asc'
   let expandedCardIds = new Set();
+  let hasSyncedFromCloud = false;
 
   let lastGeneratedId = 0;
   function generateId() {
@@ -287,13 +288,36 @@
   function syncWithCloud() {
     if (!gasUrl) {
       updateSyncStatus('未設定雲端同步 (僅使用瀏覽器本機儲存)');
+      hasSyncedFromCloud = true;
       return;
     }
     if (isSyncing) return;
     isSyncing = true;
     updateSyncStatus('正在從雲端載入資料...');
 
-    fetch(gasUrl)
+    // Show sync loading overlay
+    const overlay = document.getElementById('sync-loading-overlay');
+    const overlayText = document.getElementById('sync-loading-text');
+    const skipBtn = document.getElementById('btn-skip-sync');
+    
+    if (overlay && !hasSyncedFromCloud) {
+      overlay.classList.remove('hidden');
+      if (overlayText) overlayText.textContent = '雲端資料同步中，請稍候...';
+      if (skipBtn) {
+        skipBtn.style.display = 'none';
+        // Show skip button after 4 seconds in case connection is extremely slow/hung
+        setTimeout(() => {
+          if (!hasSyncedFromCloud) {
+            skipBtn.style.display = 'block';
+          }
+        }, 4000);
+      }
+    }
+
+    // Append cache buster to prevent cached Apps Script responses
+    const syncUrl = gasUrl + (gasUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
+
+    fetch(syncUrl)
       .then(res => res.json())
       .then(data => {
         if (data && data.materials) {
@@ -316,13 +340,26 @@
           renderUsagePage();
           
           updateSyncStatus('已完成雲端資料同步', 'success');
+          
+          hasSyncedFromCloud = true;
+          if (overlay) overlay.classList.add('hidden');
         } else {
           updateSyncStatus('雲端資料格式錯誤，請檢查試算表', 'error');
+          if (overlay) overlay.classList.add('hidden');
         }
       })
       .catch(err => {
         console.error('Fetch sync error:', err);
         updateSyncStatus('連線失敗，使用本機暫存資料', 'error');
+        if (overlay) {
+          if (overlayText) overlayText.textContent = '無法連線至雲端，已切換至離線暫存模式。';
+          setTimeout(() => {
+            overlay.classList.add('hidden');
+            hasSyncedFromCloud = true;
+          }, 1500);
+        } else {
+          hasSyncedFromCloud = true;
+        }
       })
       .finally(() => {
         isSyncing = false;
@@ -331,6 +368,10 @@
 
   function pushToCloud() {
     if (!gasUrl) return;
+    if (!hasSyncedFromCloud) {
+      console.log('Skipping cloud push: initial sync is not complete yet.');
+      return;
+    }
     updateSyncStatus('同步至雲端中...');
     
     const payload = {
@@ -2245,9 +2286,30 @@
     // Google Sheets URL bindings
     const inputGasUrl = document.getElementById('input-gas-url');
     const btnSaveGasUrl = document.getElementById('btn-save-gas-url');
+    const btnManualSync = document.getElementById('btn-manual-sync');
+    const skipBtn = document.getElementById('btn-skip-sync');
     
     if (inputGasUrl) {
       inputGasUrl.value = gasUrl;
+    }
+
+    if (btnManualSync) {
+      if (gasUrl) {
+        btnManualSync.style.display = 'inline-block';
+      }
+      btnManualSync.addEventListener('click', function () {
+        hasSyncedFromCloud = false;
+        syncWithCloud();
+      });
+    }
+
+    if (skipBtn) {
+      skipBtn.addEventListener('click', function () {
+        const overlay = document.getElementById('sync-loading-overlay');
+        if (overlay) overlay.classList.add('hidden');
+        hasSyncedFromCloud = true;
+        showToast('已進入離線暫存模式');
+      });
     }
     
     if (btnSaveGasUrl && inputGasUrl) {
@@ -2256,6 +2318,10 @@
         gasUrl = urlVal;
         localStorage.setItem('cpi_gas_url', urlVal);
         showToast('已儲存雲端同步網址');
+        if (btnManualSync) {
+          btnManualSync.style.display = urlVal ? 'inline-block' : 'none';
+        }
+        hasSyncedFromCloud = false;
         syncWithCloud();
       });
     }
