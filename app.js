@@ -393,6 +393,62 @@
       return;
     }
     updateSyncStatus('同步至雲端中...');
+
+    // --- 在前端解析 ID 為名稱，避免 GAS 做複雜對照 ---
+    const procMap = {};
+    processes.forEach(p => { procMap[p.id] = p.name; });
+
+    const matMap = {};
+    materials.forEach(m => { matMap[m.id] = m.name; });
+
+    const sterDateMap = {};
+    sterilizationRecords.forEach(r => { sterDateMap[r.id] = r.sterilizationDate; });
+
+    // 已解析名稱的滅菌紀錄
+    const readableSterRecords = sterilizationRecords.map(r => ({
+      id: String(r.id),
+      sterilizationDate: r.sterilizationDate || '',
+      processName: procMap[r.processId] || ('未知製程 (' + r.processId + ')'),
+      materialName: matMap[r.materialId] || ('未知物料 (' + r.materialId + ')'),
+      qty: r.qty || 0,
+      expiryDate: r.expiryDate || ''
+    }));
+
+    // 已解析名稱的使用紀錄
+    const readableUsageRecords = usageRecords.map(u => ({
+      id: String(u.id),
+      usageDate: u.usageDate || '',
+      processName: procMap[u.processId] || ('未知製程 (' + u.processId + ')'),
+      materialName: matMap[u.materialId] || ('未知物料 (' + u.materialId + ')'),
+      qty: u.qty || 0,
+      sterDate: sterDateMap[u.sterilizationRecordId] || 'FIFO 自動配對或無紀錄'
+    }));
+
+    // 組織已結束製程的封存資料
+    const archiveData = processes.filter(p => p.status === 'finished').map(proc => {
+      const pSter = sterilizationRecords.filter(r => r.processId === proc.id);
+      const pUsage = usageRecords.filter(u => u.processId === proc.id);
+      return {
+        id: proc.id,
+        name: proc.name || '',
+        startDate: proc.startDate || '',
+        finishedDate: (proc.feedback && proc.feedback.finishedAt) ? proc.feedback.finishedAt.substring(0, 10) : '無',
+        issues: (proc.feedback && proc.feedback.issues && proc.feedback.issues.length > 0) ? proc.feedback.issues.join(', ') : '無',
+        description: (proc.feedback && proc.feedback.description) ? proc.feedback.description : '無',
+        sterRecords: pSter.map(r => ([
+          r.sterilizationDate || '',
+          matMap[r.materialId] || ('未知物料 (' + r.materialId + ')'),
+          r.qty || 0,
+          r.expiryDate || ''
+        ])),
+        usageRecords: pUsage.map(u => ([
+          u.usageDate || '',
+          matMap[u.materialId] || ('未知物料 (' + u.materialId + ')'),
+          u.qty || 0,
+          sterDateMap[u.sterilizationRecordId] || 'FIFO 自動配對或無紀錄'
+        ]))
+      };
+    });
     
     const payload = {
       action: 'sync',
@@ -401,7 +457,10 @@
         materials: materials,
         sterilizationRecords: sterilizationRecords,
         usageRecords: usageRecords,
-        currentProcessId: currentProcessId
+        currentProcessId: currentProcessId,
+        readableSterRecords: readableSterRecords,
+        readableUsageRecords: readableUsageRecords,
+        archiveData: archiveData
       }
     };
     
