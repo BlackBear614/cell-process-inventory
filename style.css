@@ -2743,4 +2743,58 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   display: inline-block;
 }
 
+/* ============================================
+   Process Feedback Questionnaire Styling
+   ============================================ */
+.feedback-options-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.feedback-option-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+
+.feedback-option-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.feedback-option-card input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.feedback-option-card .feedback-option-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* Checked state card styling */
+.feedback-option-card:has(input[type="checkbox"]:checked) {
+  background: var(--primary-dim);
+  border-color: rgba(0, 212, 170, 0.4);
+  box-shadow: 0 0 10px rgba(0, 212, 170, 0.1);
+}
+
+
 

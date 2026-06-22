@@ -479,6 +479,79 @@
       </div>
     </div>
 
+    <!-- Process Pill Action Choice Modal -->
+    <div class="modal-overlay" id="modal-process-action">
+      <div class="modal glass-modal modal-small">
+        <div class="modal-header">
+          <h2>製程批次處理</h2>
+          <button class="modal-close" data-modal="modal-process-action" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <p class="confirm-msg" id="process-action-message" style="margin-bottom: 12px; font-size: 14px; text-align: left;">請選擇要「結束製程」並封存資料，或是「直接刪除」此製程批次？</p>
+        <div class="modal-actions" style="flex-direction: column; gap: 8px;">
+          <button class="btn-primary" id="btn-process-finish" style="width: 100%;">🏁 結束製程 (封存並紀錄)</button>
+          <button class="btn-danger" id="btn-process-delete" style="width: 100%; border: 1px solid rgba(255, 59, 48, 0.3);">🗑️ 直接刪除 (清除所有紀錄)</button>
+          <button class="btn-secondary" id="btn-process-action-cancel" style="width: 100%;">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Process Finish Feedback Modal -->
+    <div class="modal-overlay" id="modal-process-feedback">
+      <div class="modal glass-modal">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2>結束製程：問題與回饋紀錄</h2>
+          <button class="modal-close" data-modal="modal-process-feedback" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form id="form-process-feedback">
+          <div class="form-group">
+            <label style="margin-bottom: 10px; display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary);">此製程中是否有遇到任何問題？（可多選）</label>
+            <div class="feedback-options-grid">
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="製程順利">
+                <span class="feedback-option-title">製程順利</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="無菌相關問題">
+                <span class="feedback-option-title">無菌相關問題</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="製程流程問題">
+                <span class="feedback-option-title">製程流程問題</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="儀器相關問題">
+                <span class="feedback-option-title">儀器相關問題</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="原物料相關問題">
+                <span class="feedback-option-title">原物料相關問題</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="製程器具問題">
+                <span class="feedback-option-title">製程器具問題</span>
+              </label>
+              <label class="feedback-option-card">
+                <input type="checkbox" name="feedback-issues" value="其他">
+                <span class="feedback-option-title">其他</span>
+              </label>
+            </div>
+          </div>
+          <div class="form-group" style="margin-top: 20px;">
+            <label for="input-feedback-desc" style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">問題或備註詳細描述</label>
+            <textarea id="input-feedback-desc" rows="4" placeholder="請輸入詳細描述或備註（選填）..." style="width: 100%; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.05); color: var(--text-primary); padding: 12px; font-size: 14px; resize: vertical; box-sizing: border-box; font-family: inherit;"></textarea>
+          </div>
+          <button type="submit" class="btn-primary" style="width: 100%; margin-top: 15px;">
+            🏁 儲存並結束製程
+          </button>
+        </form>
+      </div>
+    </div>
+
     <!-- Toast Notification -->
     <div class="toast" id="toast">
       <span id="toast-message"></span>

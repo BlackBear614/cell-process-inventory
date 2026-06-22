@@ -41,6 +41,7 @@
 
   // Confirm callback
   let confirmCallback = null;
+  let targetProcessId = null;
 
   // Dashboard filter
   let dashboardFilter = 'all'; // D0 | D3 | D11 | D14 | all
@@ -249,9 +250,14 @@
     usageRecords = stored(STORAGE_KEYS.usageRecords) || [];
     const storedPid = stored(STORAGE_KEYS.currentProcessId);
     currentProcessId = storedPid !== null ? storedPid : null;
-    // Validate currentProcessId still exists
-    if (currentProcessId !== null && !processes.find(p => p.id === currentProcessId)) {
-      currentProcessId = processes.length > 0 ? processes[0].id : null;
+    
+    // Validate currentProcessId still exists and is not finished
+    const activeProcesses = processes.filter(p => p.status !== 'finished');
+    if (currentProcessId !== null && !activeProcesses.find(p => p.id === currentProcessId)) {
+      currentProcessId = activeProcesses.length > 0 ? activeProcesses[0].id : null;
+      saveData('currentProcessId');
+    } else if (currentProcessId === null && activeProcesses.length > 0) {
+      currentProcessId = activeProcesses[0].id;
       saveData('currentProcessId');
     }
     
@@ -693,34 +699,129 @@
     });
   }
 
-  function deleteProcess(processId) {
-    showConfirm('確定刪除此製程批次？\n相關的所有滅菌及使用紀錄也將被刪除。', function () {
+  function deleteProcessConfirm(processId) {
+    showConfirm('確定直接刪除此製程批次？\n此操作無法撤銷，相關的所有滅菌及使用紀錄也將被徹底刪除。', function () {
       performCloudSyncAction(() => {
         processes = processes.filter(p => p.id !== processId);
         sterilizationRecords = sterilizationRecords.filter(r => r.processId !== processId);
         usageRecords = usageRecords.filter(r => r.processId !== processId);
         if (currentProcessId === processId) {
-          currentProcessId = processes.length > 0 ? processes[0].id : null;
+          const active = processes.filter(p => p.status !== 'finished');
+          currentProcessId = active.length > 0 ? active[0].id : null;
+          saveData('currentProcessId');
         }
       }, () => {
         showToast('製程批次已刪除');
+        targetProcessId = null;
+
+        // Sync other selectors
+        const sterSelect = document.getElementById('ster-process-select');
+        if (sterSelect) sterSelect.value = currentProcessId || '';
+        const usageSelect = document.getElementById('usage-process-select');
+        if (usageSelect) usageSelect.value = currentProcessId || '';
+
         renderProcessPills();
         renderDashboard();
+        renderMaterialsList();
+        renderSterilizationPage();
+        renderUsagePage();
       });
     });
+  }
+
+  function initProcessActionModals() {
+    const btnFinish = document.getElementById('btn-process-finish');
+    const btnDelete = document.getElementById('btn-process-delete');
+    const btnCancel = document.getElementById('btn-process-action-cancel');
+    const formFeedback = document.getElementById('form-process-feedback');
+
+    if (btnFinish) {
+      btnFinish.addEventListener('click', function () {
+        closeModal('process-action');
+        // Clear previous values in feedback form
+        document.querySelectorAll('input[name="feedback-issues"]').forEach(cb => cb.checked = false);
+        const descEl = document.getElementById('input-feedback-desc');
+        if (descEl) descEl.value = '';
+        
+        openModal('process-feedback');
+      });
+    }
+
+    if (btnDelete) {
+      btnDelete.addEventListener('click', function () {
+        closeModal('process-action');
+        if (targetProcessId) {
+          deleteProcessConfirm(targetProcessId);
+        }
+      });
+    }
+
+    if (btnCancel) {
+      btnCancel.addEventListener('click', function () {
+        closeModal('process-action');
+        targetProcessId = null;
+      });
+    }
+
+    if (formFeedback) {
+      formFeedback.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!targetProcessId) return;
+
+        const checkedBoxes = Array.from(document.querySelectorAll('input[name="feedback-issues"]:checked')).map(cb => cb.value);
+        const descVal = document.getElementById('input-feedback-desc').value.trim();
+        const procId = targetProcessId;
+
+        performCloudSyncAction(() => {
+          const idx = processes.findIndex(p => p.id === procId);
+          if (idx !== -1) {
+            processes[idx].status = 'finished';
+            processes[idx].feedback = {
+              issues: checkedBoxes,
+              description: descVal,
+              finishedAt: new Date().toISOString()
+            };
+          }
+          // Set currentProcessId to another active process if it was the selected one
+          if (currentProcessId === procId) {
+            const active = processes.filter(p => p.id !== procId && p.status !== 'finished');
+            currentProcessId = active.length > 0 ? active[0].id : null;
+            saveData('currentProcessId');
+          }
+        }, () => {
+          closeModal('process-feedback');
+          showToast('製程已結束並封存');
+          targetProcessId = null;
+          
+          // Sync other selectors
+          const sterSelect = document.getElementById('ster-process-select');
+          if (sterSelect) sterSelect.value = currentProcessId || '';
+          const usageSelect = document.getElementById('usage-process-select');
+          if (usageSelect) usageSelect.value = currentProcessId || '';
+
+          renderProcessPills();
+          renderDashboard();
+          renderMaterialsList();
+          renderSterilizationPage();
+          renderUsagePage();
+        });
+      });
+    }
   }
 
   function renderProcessPills() {
     const container = document.getElementById('process-pills');
     if (!container) return;
 
-    if (processes.length === 0) {
+    const activeProcesses = processes.filter(p => p.status !== 'finished');
+
+    if (activeProcesses.length === 0) {
       container.innerHTML = '<div class="no-process-hint">尚無製程批次，請點擊上方按鈕新增</div>';
       return;
     }
 
     let html = '';
-    processes.forEach(proc => {
+    activeProcesses.forEach(proc => {
       const isActive = proc.id === currentProcessId;
       html += '<button class="process-pill' + (isActive ? ' active' : '') + '" data-id="' + proc.id + '">' +
         '<span class="pill-name">' + escapeHtml(proc.name) + '</span>' +
@@ -750,12 +851,20 @@
       });
     });
 
-    // Delete click
+    // Delete/Archive click
     container.querySelectorAll('.pill-delete').forEach(btn => {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         const id = Number(this.getAttribute('data-id'));
-        deleteProcess(id);
+        targetProcessId = id;
+        
+        const proc = processes.find(p => p.id === id);
+        const msgEl = document.getElementById('process-action-message');
+        if (msgEl && proc) {
+          msgEl.innerHTML = '請選擇要結束「<strong>' + escapeHtml(proc.name) + '</strong>」並封存資料，或是直接將其刪除？';
+        }
+        
+        openModal('process-action');
       });
     });
   }
@@ -2421,7 +2530,7 @@
     const selectedId = options.selectedId !== undefined ? options.selectedId : currentProcessId;
 
     let html = '<option value="' + defaultValue + '"' + (selectedId === defaultValue ? ' selected' : '') + '>' + defaultText + '</option>';
-    processes.forEach(proc => {
+    processes.filter(p => p.status !== 'finished').forEach(proc => {
       const isSelected = proc.id === selectedId;
       html += '<option value="' + proc.id + '"' + (isSelected ? ' selected' : '') + '>' +
         escapeHtml(proc.name) + ' (' + formatShortDate(proc.startDate) + ')' +
@@ -2555,6 +2664,7 @@
     initTabs();
     initModals();
     initConfirm();
+    initProcessActionModals();
     initFilterPills();
     initProcessForm();
     initMaterialForm();
