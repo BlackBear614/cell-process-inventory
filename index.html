@@ -125,10 +125,6 @@
         <h1>庫存清單</h1>
         <p class="page-subtitle">Inventory</p>
         <div class="header-actions">
-          <button class="header-btn" id="btn-toggle-inventory-edit" aria-label="管理">✏️</button>
-          <button class="header-btn" id="btn-add-material" aria-label="新增項目">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
           <button class="header-btn btn-open-settings" aria-label="設定">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
           </button>
@@ -198,9 +194,6 @@
         <!-- History -->
         <div class="section-header collapsible-header" id="header-ster-history" style="cursor: pointer; user-select: none;">
           <h3 class="section-title">滅菌歷史 <span class="toggle-icon">🔽</span></h3>
-          <button class="header-btn-sm" id="btn-export-sterilization" style="font-size: 11px; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.05); color: var(--text-primary); cursor: pointer; display: flex; align-items: center; gap: 4px;" title="匯出 Excel">
-            📥 匯出 Excel
-          </button>
         </div>
         <div id="section-ster-history-content" style="display: none;">
           <div class="search-wrapper">
@@ -269,19 +262,19 @@
     <nav class="tab-bar" id="tab-bar">
       <button class="tab-btn active" data-page="dashboard" id="tab-dashboard">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        <span>總覽</span>
+        <span>💻 總覽</span>
       </button>
       <button class="tab-btn" data-page="materials" id="tab-materials">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-        <span>庫存</span>
+        <span>📦 庫存</span>
       </button>
       <button class="tab-btn" data-page="sterilization" id="tab-sterilization">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-        <span>滅菌</span>
+        <span>🔥 滅菌</span>
       </button>
       <button class="tab-btn" data-page="usage" id="tab-usage">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <span>使用</span>
+        <span>🧪 使用</span>
       </button>
     </nav>
 
@@ -301,6 +294,10 @@
           <div class="form-group">
             <label for="input-process-name">批次名稱</label>
             <input type="text" id="input-process-name" placeholder="例如：Batch 001、第一批次" required>
+          </div>
+          <div class="form-group">
+            <label for="input-process-recipe">製程類型 (配方)</label>
+            <select id="input-process-recipe" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 13px;"></select>
           </div>
           <div class="form-group">
             <label for="input-process-date">製程起始日 (D0)</label>
@@ -340,36 +337,19 @@
             <input type="text" id="input-material-name" placeholder="例如：鐵架、培養皿" required>
           </div>
           <div class="form-group">
-            <label for="input-material-icon">選擇圖示</label>
-            <div class="icon-picker" id="icon-picker">
-              <button type="button" class="icon-option selected" data-icon="🧪">🧪</button>
-              <button type="button" class="icon-option" data-icon="🧫">🧫</button>
-              <button type="button" class="icon-option" data-icon="🔬">🔬</button>
-              <button type="button" class="icon-option" data-icon="🧬">🧬</button>
-              <button type="button" class="icon-option" data-icon="🏗️">🏗️</button>
-              <button type="button" class="icon-option" data-icon="❄️">❄️</button>
-              <button type="button" class="icon-option" data-icon="💉">💉</button>
-              <button type="button" class="icon-option" data-icon="🧴">🧴</button>
-              <button type="button" class="icon-option" data-icon="🫧">🫧</button>
-              <button type="button" class="icon-option" data-icon="⚗️">⚗️</button>
-              <button type="button" class="icon-option" data-icon="🩺">🩺</button>
-              <button type="button" class="icon-option" data-icon="📦">📦</button>
-            </div>
-            <input type="hidden" id="input-material-icon" value="🧪">
-          </div>
-          <div class="form-group">
-            <label for="input-material-custom-icon">或輸入自訂圖示 (Emoji 或文字)</label>
-            <input type="text" id="input-material-custom-icon" placeholder="例如：🩸、🧫、A (選填)" maxlength="2">
-          </div>
-          <div class="form-group">
-            <label for="input-material-file-icon">或上傳自訂圖示 (圖片)</label>
+            <label for="input-material-file-icon">上傳自訂圖示 (圖片檔案)</label>
             <input type="file" id="input-material-file-icon" accept="image/*" class="file-input">
             <div id="material-file-preview" style="margin-top: 8px; display: none; align-items: center; gap: 10px;">
               <img id="img-file-preview" src="" style="width: 40px; height: 40px; border-radius: 8px; border: 1px solid var(--card-border); object-fit: cover;">
-              <span id="txt-file-preview" style="font-size: 12px; color: var(--text-secondary);">已載入上傳圖示</span>
+              <span id="txt-file-preview" style="font-size: 12px; color: var(--text-secondary);">已選取圖片</span>
               <button type="button" id="btn-clear-file-icon" style="color: var(--danger); font-size: 12px; cursor: pointer; border: none; background: none;">清除</button>
             </div>
           </div>
+          <div class="form-group">
+            <label for="input-material-url-icon">或貼上圖片網址 (Icon URL)</label>
+            <input type="text" id="input-material-url-icon" placeholder="例如：https://example.com/icon.png">
+          </div>
+          <input type="hidden" id="input-material-icon" value="📦">
           <div class="form-row">
             <div class="form-group">
               <label for="input-material-qty">需求量</label>
@@ -409,10 +389,13 @@
           </button>
         </div>
         <div class="settings-content">
-          <!-- Google Sheets URL input -->
+          <!-- Notion Connection Info -->
           <div class="form-group" style="margin-bottom: 16px;">
-            <label for="input-gas-url-modal" style="font-size: 12px; color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 6px;">Google Sheets 同步網址 (GAS Web App URL)</label>
-            <input type="url" id="input-gas-url-modal" placeholder="https://script.google.com/macros/s/.../exec" style="width: 100%; font-size: 13px; padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box;">
+            <label style="font-size: 12px; color: var(--text-primary); font-weight: 500; display: block; margin-bottom: 6px;">Notion 雲端整合狀態</label>
+            <div style="font-size: 13px; padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.15); color: var(--text-secondary); line-height: 1.4;">
+              系統已對接到 Notion 雲端。將透過 Vercel 端的環境變數 <code>NOTION_TOKEN</code> 及 <code>NOTION_PAGE_ID</code> 進行自動雙向同步。
+            </div>
+            <input type="hidden" id="input-gas-url-modal" value="/api/sync">
           </div>
           
           <!-- Cloud Sync Actions -->
@@ -420,19 +403,32 @@
             <h3 class="settings-sec-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">雲端備份與同步</h3>
             <div class="settings-sync-box" style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); padding: 12px; border-radius: var(--radius-md);">
               <div id="sync-status-modal" class="sync-status-text" style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-                ⚪ 未設定雲端同步
+                ⚪ 正在載入與 Notion 連線狀態
               </div>
               <div class="sync-buttons-row" style="display: flex; gap: 10px;">
-                <button class="btn-primary" id="btn-save-gas-url-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                <button class="btn-primary" id="btn-save-gas-url-modal" style="display: none;">
                   💾 儲存並同步
                 </button>
-                <button class="btn-secondary" id="btn-manual-sync-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
-                  🔄 立即同步
+                <button class="btn-primary" id="btn-manual-sync-modal" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
+                  🔄 立即同步最新資料
                 </button>
               </div>
             </div>
           </div>
           
+          <!-- Recipes & Materials Settings -->
+          <div class="settings-section" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+            <h3 class="settings-sec-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">配方與物料配置</h3>
+            <div class="system-maintenance-row" style="display: flex; gap: 10px;">
+              <button type="button" class="btn-secondary" id="btn-open-material-library" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                📋 管理物料庫
+              </button>
+              <button type="button" class="btn-secondary" id="btn-open-recipe-list" style="flex: 1; padding: 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                🧬 管理製程配方
+              </button>
+            </div>
+          </div>
+
           <!-- System Maintenance -->
           <div class="settings-section" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
             <h3 class="settings-sec-title" style="font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 12px;">系統維護</h3>
@@ -462,6 +458,89 @@
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ===== NEW CONFIGURATION MODALS ===== -->
+
+    <!-- Material Library Manager Modal -->
+    <div class="modal-overlay" id="modal-material-library">
+      <div class="modal glass-modal" style="max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2>物料品項庫</h2>
+          <button class="modal-close" data-modal="modal-material-library" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+          <span style="font-size: 12px; color: var(--text-secondary);">管理實驗室的所有基本物料品項與圖示</span>
+          <button type="button" class="btn-primary" id="btn-add-library-material" style="padding: 6px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap;">
+            ➕ 新增品項
+          </button>
+        </div>
+        <div id="library-material-list" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+          <!-- Dynamically populated list -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipe List Manager Modal -->
+    <div class="modal-overlay" id="modal-recipe-list">
+      <div class="modal glass-modal" style="max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2>製程配方範本</h2>
+          <button class="modal-close" data-modal="modal-recipe-list" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div style="padding: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+          <span style="font-size: 12px; color: var(--text-secondary);">管理不同製程所需的物料、數量與天數配置</span>
+          <button type="button" class="btn-primary" id="btn-add-recipe" style="padding: 6px 12px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap;">
+            ➕ 新增配方
+          </button>
+        </div>
+        <div id="recipe-list-container" style="flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <!-- Dynamically populated recipes -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Recipe Editor Modal -->
+    <div class="modal-overlay" id="modal-recipe-edit">
+      <div class="modal glass-modal" style="max-height: 90vh; display: flex; flex-direction: column; width: 90%; max-width: 500px;">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2 id="modal-recipe-edit-title">編輯製程配方</h2>
+          <button class="modal-close" data-modal="modal-recipe-edit" aria-label="關閉">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <form id="form-recipe-edit" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+          <div style="padding: 16px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group">
+              <label for="input-recipe-name">配方名稱</label>
+              <input type="text" id="input-recipe-name" placeholder="例如：NK02、預設製程" required>
+            </div>
+            <div class="form-group">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label style="margin-bottom: 0;">物料需求配置</label>
+                <button type="button" class="btn-secondary" id="btn-add-recipe-requirement" style="padding: 4px 8px; font-size: 11px; display: flex; align-items: center; gap: 2px; cursor: pointer;">
+                  ➕ 增加物料行
+                </button>
+              </div>
+              <div id="recipe-requirements-container" style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- Dynamic rows of material configurations -->
+              </div>
+            </div>
+          </div>
+          <input type="hidden" id="input-recipe-id">
+          <div style="padding: 16px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; background: rgba(0,0,0,0.1);">
+            <button type="button" class="btn-secondary modal-close" data-modal="modal-recipe-edit" style="flex: 1; cursor: pointer;">取消</button>
+            <button type="submit" class="btn-primary" style="flex: 1; cursor: pointer;">儲存配方</button>
+          </div>
+        </form>
       </div>
     </div>
 

@@ -5,23 +5,38 @@
   const STORAGE_KEYS = {
     processes: 'cpi_processes',
     materials: 'cpi_materials',
+    recipes: 'cpi_recipes',
     sterilizationRecords: 'cpi_sterilization_records',
     usageRecords: 'cpi_usage_records',
     currentProcessId: 'cpi_current_process_id',
   };
 
-  const DAY_OFFSETS = { D0: 0, D3: 3, D11: 11, D14: 14 };
-  const PROCESS_DAYS = ['D0', 'D3', 'D11', 'D14'];
-
   const DEFAULT_MATERIALS = [
-    { id: 1, name: '鐵架 (Iron Rack)', icon: '🏗️', requiredQty: 2, processDay: 'D0' },
-    { id: 2, name: '培養皿 (Petri Dish)', icon: '🧫', requiredQty: 10, processDay: 'D0' },
-    { id: 3, name: '離心管 15mL', icon: '🧪', requiredQty: 20, processDay: 'D0' },
-    { id: 4, name: '離心管 50mL', icon: '🧪', requiredQty: 10, processDay: 'D3' },
-    { id: 5, name: '細胞刮刀 (Cell Scraper)', icon: '🔬', requiredQty: 5, processDay: 'D11' },
-    { id: 6, name: '培養瓶 T75', icon: '🧬', requiredQty: 6, processDay: 'D0' },
-    { id: 7, name: '培養瓶 T175', icon: '🧬', requiredQty: 4, processDay: 'D3' },
-    { id: 8, name: '凍存管 (Cryovial)', icon: '❄️', requiredQty: 20, processDay: 'D14' },
+    { id: 1, name: '鐵架 (Iron Rack)', icon: '🏗️' },
+    { id: 2, name: '培養皿 (Petri Dish)', icon: '🧫' },
+    { id: 3, name: '離心管 15mL', icon: '🧪' },
+    { id: 4, name: '離心管 50mL', icon: '🧪' },
+    { id: 5, name: '細胞刮刀 (Cell Scraper)', icon: '🔬' },
+    { id: 6, name: '培養瓶 T75', icon: '🧬' },
+    { id: 7, name: '培養瓶 T175', icon: '🧬' },
+    { id: 8, name: '凍存管 (Cryovial)', icon: '❄️' },
+  ];
+
+  const DEFAULT_RECIPES = [
+    {
+      id: 1,
+      name: '預設製程 (Default)',
+      requirements: [
+        { materialId: 1, requiredQty: 2, processDay: 'D0' },
+        { materialId: 2, requiredQty: 10, processDay: 'D0' },
+        { materialId: 3, requiredQty: 20, processDay: 'D0' },
+        { materialId: 4, requiredQty: 10, processDay: 'D3' },
+        { materialId: 5, requiredQty: 5, processDay: 'D11' },
+        { materialId: 6, requiredQty: 6, processDay: 'D0' },
+        { materialId: 7, requiredQty: 4, processDay: 'D3' },
+        { materialId: 8, requiredQty: 20, processDay: 'D14' },
+      ]
+    }
   ];
 
   const ICON_OPTIONS = ['🏗️', '🧫', '🧪', '🔬', '🧬', '❄️', '💉', '🩺', '🧴', '🧲', '📦', '🔩', '⚗️', '🩹', '🧯', '🪣'];
@@ -29,11 +44,14 @@
   // ─── State ───────────────────────────────────────────────────────────
   let processes = [];
   let materials = [];
+  let recipes = [];
   let sterilizationRecords = [];
   let usageRecords = [];
   let currentProcessId = null;
-  let gasUrl = '';
+  let gasUrl = '/api/sync';
+  let isNotionConfigured = true;
   let isSyncing = false;
+  let formMaterialContext = 'library'; // 'library' | 'recipe'
 
   // Selection state for tile grids
   let sterSelectedIds = new Set();
@@ -60,6 +78,8 @@
   let usageHistoryExpanded = false;
   let hasSyncedFromCloud = false;
 
+  let isInitialized = false;
+
   let lastGeneratedId = 0;
   function generateId() {
     let id = Date.now();
@@ -68,6 +88,53 @@
     }
     lastGeneratedId = id;
     return id;
+  }
+
+  function cleanId(val) {
+    if (val === undefined || val === null || val === '') return '';
+    return isNaN(val) ? String(val) : Number(val);
+  }
+
+  function findRecipe(id) {
+    return recipes.find(r => cleanId(r.id) === cleanId(id));
+  }
+  function findMaterial(id) {
+    return materials.find(m => cleanId(m.id) === cleanId(id));
+  }
+  function findProcess(id) {
+    return processes.find(p => cleanId(p.id) === cleanId(id));
+  }
+
+  function updateLocalIds(mappings) {
+    const mapId = (id) => cleanId(mappings[id] || id);
+    processes.forEach(p => {
+      p.id = mapId(p.id);
+      p.recipeId = mapId(p.recipeId);
+    });
+    materials.forEach(m => {
+      m.id = mapId(m.id);
+    });
+    recipes.forEach(r => {
+      r.id = mapId(r.id);
+      if (r.requirements) {
+        r.requirements.forEach(req => {
+          req.materialId = mapId(req.materialId);
+        });
+      }
+    });
+    sterilizationRecords.forEach(s => {
+      s.id = mapId(s.id);
+      s.processId = mapId(s.processId);
+      s.materialId = mapId(s.materialId);
+    });
+    usageRecords.forEach(u => {
+      u.id = mapId(u.id);
+      u.processId = mapId(u.processId);
+      u.materialId = mapId(u.materialId);
+      if (u.sterilizationRecordId !== 'FIFO') {
+        u.sterilizationRecordId = mapId(u.sterilizationRecordId);
+      }
+    });
   }
 
   function formatDate(str) {
@@ -125,9 +192,44 @@
 
   function getProcessDayDate(processDay, process) {
     if (!process || !process.startDate) return null;
-    const offset = DAY_OFFSETS[processDay];
-    if (offset === undefined) return null;
+    const offset = parseInt(processDay.substring(1), 10);
+    if (isNaN(offset)) return null;
     return addDays(process.startDate, offset);
+  }
+
+  function getRecipeProcessDays(recipe) {
+    if (!recipe || !recipe.requirements) return ['D0', 'D3', 'D11', 'D14'];
+    const days = new Set();
+    recipe.requirements.forEach(req => {
+      if (req.processDay) days.add(req.processDay);
+    });
+    const daysList = Array.from(days);
+    daysList.sort((a, b) => {
+      const offsetA = parseInt(a.substring(1), 10) || 0;
+      const offsetB = parseInt(b.substring(1), 10) || 0;
+      return offsetA - offsetB;
+    });
+    return daysList.length > 0 ? daysList : ['D0', 'D3', 'D11', 'D14'];
+  }
+
+  function getProcessDayMaterials(processId, dayLabel) {
+    const proc = findProcess(processId);
+    if (!proc) return [];
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    if (!recipe || !recipe.requirements) return [];
+    
+    const reqs = recipe.requirements.filter(r => r.processDay === dayLabel);
+    return reqs.map(r => {
+      const mat = findMaterial(r.materialId);
+      if (!mat) return null;
+      return {
+        id: mat.id,
+        name: mat.name,
+        icon: mat.icon,
+        requiredQty: r.requiredQty,
+        processDay: r.processDay
+      };
+    }).filter(Boolean);
   }
 
   function getDaysRemaining(expiryDate) {
@@ -147,8 +249,25 @@
     return 'valid';
   }
 
+  function getMaterialStatus(mat, processId) {
+    const proc = findProcess(processId);
+    if (!proc) return { status: 'danger', requiredQty: 0, processDay: '' };
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    if (!recipe || !recipe.requirements) return { status: 'danger', requiredQty: 0, processDay: '' };
+
+    const req = recipe.requirements.find(r => cleanId(r.materialId) === cleanId(mat.id));
+    if (!req) return { status: 'ok', requiredQty: 0, processDay: '' };
+
+    const stock = getStock(mat.id, processId);
+    let status = 'ok';
+    if (stock === 0) status = 'danger';
+    else if (stock < req.requiredQty) status = 'warn';
+
+    return { status, requiredQty: req.requiredQty, processDay: req.processDay, stock };
+  }
+
   function getMaterialBatches(materialId, processId, includeOthers = true) {
-    const sterRecs = sterilizationRecords.filter(r => (includeOthers || r.processId === processId) && r.materialId === materialId);
+    const sterRecs = sterilizationRecords.filter(r => (includeOthers || cleanId(r.processId) === cleanId(processId)) && cleanId(r.materialId) === cleanId(materialId));
     const batches = sterRecs.map(r => ({
       id: r.id,
       materialId: r.materialId,
@@ -160,20 +279,20 @@
     }));
 
     const batchIds = new Set(batches.map(b => b.id));
-    const useRecs = usageRecords.filter(r => r.materialId === materialId && r.sterilizationRecordId && batchIds.has(r.sterilizationRecordId));
+    const useRecs = usageRecords.filter(r => cleanId(r.materialId) === cleanId(materialId) && r.sterilizationRecordId && batchIds.has(r.sterilizationRecordId));
 
     useRecs.forEach(u => {
-      const batch = batches.find(b => b.id === u.sterilizationRecordId);
+      const batch = batches.find(b => cleanId(b.id) === cleanId(u.sterilizationRecordId));
       if (batch) {
         batch.remainingQty = Math.max(0, batch.remainingQty - u.qty);
       }
     });
 
-    const fifoUseRecs = usageRecords.filter(r => r.materialId === materialId && !r.sterilizationRecordId);
+    const fifoUseRecs = usageRecords.filter(r => cleanId(r.materialId) === cleanId(materialId) && !r.sterilizationRecordId);
     const processesWithLoadedBatches = new Set(batches.map(b => b.processId));
 
     processesWithLoadedBatches.forEach(pId => {
-      const pUseRecs = fifoUseRecs.filter(r => r.processId === pId);
+      const pUseRecs = fifoUseRecs.filter(r => cleanId(r.processId) === cleanId(pId));
       const pBatches = batches.filter(b => b.processId === pId);
       const sortedForFifo = [...pBatches].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.id - b.id);
       
@@ -195,7 +314,7 @@
   }
 
   function getProcessName(processId) {
-    const proc = processes.find(p => p.id === processId);
+    const proc = findProcess(processId);
     return proc ? proc.name : '未知批次';
   }
 
@@ -241,11 +360,21 @@
       }
     };
     processes = stored(STORAGE_KEYS.processes) || [];
+    
+    // Load Materials Library
     materials = stored(STORAGE_KEYS.materials);
     if (!materials || materials.length === 0) {
       materials = JSON.parse(JSON.stringify(DEFAULT_MATERIALS));
       saveData('materials');
     }
+
+    // Load Recipes Config
+    recipes = stored(STORAGE_KEYS.recipes);
+    if (!recipes || recipes.length === 0) {
+      recipes = JSON.parse(JSON.stringify(DEFAULT_RECIPES));
+      saveData('recipes');
+    }
+
     sterilizationRecords = stored(STORAGE_KEYS.sterilizationRecords) || [];
     usageRecords = stored(STORAGE_KEYS.usageRecords) || [];
     const storedPid = stored(STORAGE_KEYS.currentProcessId);
@@ -261,14 +390,15 @@
       saveData('currentProcessId');
     }
     
-    // Load GAS sync URL
-    gasUrl = localStorage.getItem('cpi_gas_url') || '';
+    // Load Notion sync URL
+    gasUrl = '/api/sync';
   }
 
   function saveData(what) {
     if (what !== 'skipCloud') {
       if (!what || what === 'processes') localStorage.setItem(STORAGE_KEYS.processes, JSON.stringify(processes));
       if (!what || what === 'materials') localStorage.setItem(STORAGE_KEYS.materials, JSON.stringify(materials));
+      if (!what || what === 'recipes') localStorage.setItem(STORAGE_KEYS.recipes, JSON.stringify(recipes));
       if (!what || what === 'sterilizationRecords') localStorage.setItem(STORAGE_KEYS.sterilizationRecords, JSON.stringify(sterilizationRecords));
       if (!what || what === 'usageRecords') localStorage.setItem(STORAGE_KEYS.usageRecords, JSON.stringify(usageRecords));
       if (!what || what === 'currentProcessId') localStorage.setItem(STORAGE_KEYS.currentProcessId, JSON.stringify(currentProcessId));
@@ -277,6 +407,7 @@
     } else {
       localStorage.setItem(STORAGE_KEYS.processes, JSON.stringify(processes));
       localStorage.setItem(STORAGE_KEYS.materials, JSON.stringify(materials));
+      localStorage.setItem(STORAGE_KEYS.recipes, JSON.stringify(recipes));
       localStorage.setItem(STORAGE_KEYS.sterilizationRecords, JSON.stringify(sterilizationRecords));
       localStorage.setItem(STORAGE_KEYS.usageRecords, JSON.stringify(usageRecords));
       localStorage.setItem(STORAGE_KEYS.currentProcessId, JSON.stringify(currentProcessId));
@@ -306,14 +437,9 @@
   }
 
   function syncWithCloud() {
-    if (!gasUrl) {
-      updateSyncStatus('未設定雲端同步 (僅使用瀏覽器本機儲存)');
-      hasSyncedFromCloud = true;
-      return;
-    }
     if (isSyncing) return;
     isSyncing = true;
-    updateSyncStatus('正在從雲端載入資料...');
+    updateSyncStatus('正在從 Notion 載入資料...');
 
     // Show sync loading overlay
     const overlay = document.getElementById('sync-loading-overlay');
@@ -322,10 +448,9 @@
     
     if (overlay && !hasSyncedFromCloud) {
       overlay.classList.remove('hidden');
-      if (overlayText) overlayText.textContent = '雲端資料同步中，請稍候...';
+      if (overlayText) overlayText.textContent = 'Notion 資料同步中，請稍候...';
       if (skipBtn) {
         skipBtn.style.display = 'none';
-        // Show skip button after 4 seconds in case connection is extremely slow/hung
         setTimeout(() => {
           if (!hasSyncedFromCloud) {
             skipBtn.style.display = 'block';
@@ -334,37 +459,45 @@
       }
     }
 
-    // Append cache buster to prevent cached Apps Script responses
     const syncUrl = gasUrl + (gasUrl.includes('?') ? '&' : '?') + '_t=' + Date.now();
 
     fetch(syncUrl)
       .then(res => res.json())
       .then(data => {
+        if (data && data.success === false && data.error === 'NOTION_NOT_CONFIGURED') {
+          isNotionConfigured = false;
+          updateSyncStatus('未連接 Notion (僅使用本機儲存)');
+          hasSyncedFromCloud = true;
+          if (overlay) overlay.classList.add('hidden');
+          return;
+        }
+
         if (data && data.materials) {
+          isNotionConfigured = true;
           processes = data.processes || [];
           materials = data.materials || [];
+          recipes = data.recipes || [];
           sterilizationRecords = data.sterilizationRecords || [];
           usageRecords = data.usageRecords || [];
           if (data.currentProcessId !== undefined) {
             currentProcessId = data.currentProcessId;
           }
           
-          // Save to local cache without triggering a loop sync back
           saveData('skipCloud');
           
-          // Refresh views
+          populateRecipeDropdowns();
           renderProcessPills();
           renderDashboard();
           renderMaterialsList();
           renderSterilizationPage();
           renderUsagePage();
           
-          updateSyncStatus('已完成雲端資料同步', 'success');
+          updateSyncStatus('已完成 Notion 資料同步', 'success');
           
           hasSyncedFromCloud = true;
           if (overlay) overlay.classList.add('hidden');
         } else {
-          updateSyncStatus('雲端資料格式錯誤，請檢查試算表', 'error');
+          updateSyncStatus('同步錯誤：資料格式不符', 'error');
           if (overlay) overlay.classList.add('hidden');
         }
       })
@@ -372,7 +505,7 @@
         console.error('Fetch sync error:', err);
         updateSyncStatus('連線失敗，使用本機暫存資料', 'error');
         if (overlay) {
-          if (overlayText) overlayText.textContent = '無法連線至雲端，已切換至離線暫存模式。';
+          if (overlayText) overlayText.textContent = '無法連線至 Notion，已切換至離線暫存模式。';
           setTimeout(() => {
             overlay.classList.add('hidden');
             hasSyncedFromCloud = true;
@@ -387,93 +520,46 @@
   }
 
   function pushToCloud() {
-    if (!gasUrl) return;
+    if (!isNotionConfigured) return;
     if (!hasSyncedFromCloud) {
       console.log('Skipping cloud push: initial sync is not complete yet.');
       return;
     }
-    updateSyncStatus('同步至雲端中...');
+    updateSyncStatus('同步至 Notion 中...');
 
-    // --- 在前端解析 ID 為名稱，避免 GAS 做複雜對照 ---
-    const procMap = {};
-    processes.forEach(p => { procMap[p.id] = p.name; });
-
-    const matMap = {};
-    materials.forEach(m => { matMap[m.id] = m.name; });
-
-    const sterDateMap = {};
-    sterilizationRecords.forEach(r => { sterDateMap[r.id] = r.sterilizationDate; });
-
-    // 已解析名稱的滅菌紀錄
-    const readableSterRecords = sterilizationRecords.map(r => ({
-      id: String(r.id),
-      sterilizationDate: r.sterilizationDate || '',
-      processName: procMap[r.processId] || ('未知製程 (' + r.processId + ')'),
-      materialName: matMap[r.materialId] || ('未知物料 (' + r.materialId + ')'),
-      qty: r.qty || 0,
-      expiryDate: r.expiryDate || ''
-    }));
-
-    // 已解析名稱的使用紀錄
-    const readableUsageRecords = usageRecords.map(u => ({
-      id: String(u.id),
-      usageDate: u.usageDate || '',
-      processName: procMap[u.processId] || ('未知製程 (' + u.processId + ')'),
-      materialName: matMap[u.materialId] || ('未知物料 (' + u.materialId + ')'),
-      qty: u.qty || 0,
-      sterDate: sterDateMap[u.sterilizationRecordId] || 'FIFO 自動配對或無紀錄'
-    }));
-
-    // 組織已結束製程的封存資料
-    const archiveData = processes.filter(p => p.status === 'finished').map(proc => {
-      const pSter = sterilizationRecords.filter(r => r.processId === proc.id);
-      const pUsage = usageRecords.filter(u => u.processId === proc.id);
-      return {
-        id: proc.id,
-        name: proc.name || '',
-        startDate: proc.startDate || '',
-        finishedDate: (proc.feedback && proc.feedback.finishedAt) ? proc.feedback.finishedAt.substring(0, 10) : '無',
-        issues: (proc.feedback && proc.feedback.issues && proc.feedback.issues.length > 0) ? proc.feedback.issues.join(', ') : '無',
-        description: (proc.feedback && proc.feedback.description) ? proc.feedback.description : '無',
-        sterRecords: pSter.map(r => ([
-          r.sterilizationDate || '',
-          matMap[r.materialId] || ('未知物料 (' + r.materialId + ')'),
-          r.qty || 0,
-          r.expiryDate || ''
-        ])),
-        usageRecords: pUsage.map(u => ([
-          u.usageDate || '',
-          matMap[u.materialId] || ('未知物料 (' + u.materialId + ')'),
-          u.qty || 0,
-          sterDateMap[u.sterilizationRecordId] || 'FIFO 自動配對或無紀錄'
-        ]))
-      };
-    });
-    
     const payload = {
       action: 'sync',
       data: {
         processes: processes,
         materials: materials,
+        recipes: recipes,
         sterilizationRecords: sterilizationRecords,
         usageRecords: usageRecords,
-        currentProcessId: currentProcessId,
-        readableSterRecords: readableSterRecords,
-        readableUsageRecords: readableUsageRecords,
-        archiveData: archiveData
+        currentProcessId: currentProcessId
       }
     };
     
-    // We send payload as JSON string but do NOT set application/json content-type
-    // to prevent browser from sending preflight CORS OPTIONS requests to Google Apps Script.
     fetch(gasUrl, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify(payload)
     })
       .then(res => res.json())
       .then(resData => {
-        if (resData && resData.success) {
-          updateSyncStatus('已同步至雲端', 'success');
+        if (resData && resData.success !== false) {
+          updateSyncStatus('已同步至 Notion', 'success');
+          // If server returned ID mappings
+          if (resData.idMappings && Object.keys(resData.idMappings).length > 0) {
+            console.log('Applying server ID mappings:', resData.idMappings);
+            updateLocalIds(resData.idMappings);
+            if (resData.currentProcessId) {
+              currentProcessId = resData.currentProcessId;
+            }
+            saveData('skipCloud');
+            renderAll();
+          }
         } else {
           updateSyncStatus('同步失敗: ' + (resData ? resData.error : '未知錯誤'), 'error');
         }
@@ -484,10 +570,19 @@
       });
   }
 
+  let isCloudSyncActionRunning = false;
+
   function performCloudSyncAction(actionCallback, afterCallback) {
-    if (!gasUrl) {
+    if (isCloudSyncActionRunning) {
+      console.warn('Sync action already running, ignoring duplicate call.');
+      return;
+    }
+    isCloudSyncActionRunning = true;
+
+    if (!isNotionConfigured) {
       actionCallback();
       saveData('skipCloud');
+      isCloudSyncActionRunning = false;
       if (afterCallback) afterCallback();
       return;
     }
@@ -495,7 +590,7 @@
     const overlay = document.getElementById('sync-loading-overlay');
     const overlayText = document.getElementById('sync-loading-text');
     if (overlay) {
-      if (overlayText) overlayText.textContent = '正在與雲端同步最新資料...';
+      if (overlayText) overlayText.textContent = '正在與 Notion 同步最新資料...';
       overlay.classList.remove('hidden');
     }
 
@@ -503,9 +598,22 @@
     fetch(syncUrl)
       .then(res => res.json())
       .then(data => {
+        if (data && data.success === false && data.error === 'NOTION_NOT_CONFIGURED') {
+          isNotionConfigured = false;
+          updateSyncStatus('未連接 Notion (僅使用本機儲存)');
+          actionCallback();
+          saveData('skipCloud');
+          isCloudSyncActionRunning = false;
+          if (overlay) overlay.classList.add('hidden');
+          if (afterCallback) afterCallback();
+          return;
+        }
+
         if (data && data.materials) {
+          isNotionConfigured = true;
           processes = data.processes || [];
           materials = data.materials || [];
+          recipes = data.recipes || [];
           sterilizationRecords = data.sterilizationRecords || [];
           usageRecords = data.usageRecords || [];
           if (data.currentProcessId !== undefined) {
@@ -519,21 +627,22 @@
 
         if (overlay) overlay.classList.add('hidden');
         
-        // Show success status
-        updateSyncStatus('已同步至雲端', 'success');
+        updateSyncStatus('已同步至 Notion', 'success');
         
         const timeEl = document.getElementById('sync-time-modal');
         if (timeEl) timeEl.textContent = new Date().toLocaleTimeString();
 
+        isCloudSyncActionRunning = false;
         if (afterCallback) afterCallback();
       })
       .catch(err => {
         console.error('Action cloud sync error:', err);
-        showToast('無法同步雲端，已以離線模式儲存於本機');
+        showToast('無法同步 Notion，已以離線模式儲存於本機');
         
         actionCallback();
         saveData('skipCloud');
         
+        isCloudSyncActionRunning = false;
         if (overlay) overlay.classList.add('hidden');
         if (afterCallback) afterCallback();
       });
@@ -577,13 +686,25 @@
   function openModal(name) {
     const id = name.startsWith('modal-') ? name : 'modal-' + name;
     const el = document.getElementById(id);
-    if (el) el.classList.add('active');
+    if (el) {
+      el.classList.add('active');
+      if (id === 'modal-material' || id === 'modal-recipe-edit') {
+        el.style.zIndex = '300';
+      } else if (id === 'modal-confirm') {
+        el.style.zIndex = '400';
+      }
+    }
   }
 
   function closeModal(name) {
     const id = name.startsWith('modal-') ? name : 'modal-' + name;
     const el = document.getElementById(id);
-    if (el) el.classList.remove('active');
+    if (el) {
+      el.classList.remove('active');
+      if (id === 'modal-material' || id === 'modal-recipe-edit' || id === 'modal-confirm') {
+        el.style.zIndex = '';
+      }
+    }
   }
 
   function initModals() {
@@ -673,13 +794,16 @@
     const btnEdit = document.getElementById('btn-edit-process');
     const form = document.getElementById('form-process');
     const dateInput = document.getElementById('input-process-date');
+    const recipeSelect = document.getElementById('input-process-recipe');
 
     if (btnAdd) {
       btnAdd.addEventListener('click', function () {
+        populateRecipeDropdowns();
         document.getElementById('modal-process-title').textContent = '新增製程批次';
         document.getElementById('input-process-name').value = '';
         document.getElementById('input-process-date').value = todayISO();
         document.getElementById('input-process-id').value = '';
+        if (recipeSelect) recipeSelect.value = '1'; // Default recipe
         updateProcessDatePreview(todayISO());
         openModal('process');
       });
@@ -687,15 +811,17 @@
 
     if (btnEdit) {
       btnEdit.addEventListener('click', function () {
-        const proc = processes.find(p => p.id === currentProcessId);
+        const proc = findProcess(currentProcessId);
         if (!proc) {
           showToast('請先選擇製程批次');
           return;
         }
+        populateRecipeDropdowns();
         document.getElementById('modal-process-title').textContent = '編輯製程批次';
         document.getElementById('input-process-name').value = proc.name;
         document.getElementById('input-process-date').value = proc.startDate;
         document.getElementById('input-process-id').value = proc.id;
+        if (recipeSelect) recipeSelect.value = proc.recipeId || 1;
         updateProcessDatePreview(proc.startDate);
         openModal('process');
       });
@@ -707,12 +833,21 @@
       });
     }
 
+    if (recipeSelect) {
+      recipeSelect.addEventListener('change', function () {
+        if (dateInput) {
+          updateProcessDatePreview(dateInput.value);
+        }
+      });
+    }
+
     if (form) {
       form.addEventListener('submit', function (e) {
         e.preventDefault();
         const name = document.getElementById('input-process-name').value.trim();
         const startDate = document.getElementById('input-process-date').value;
         const editId = document.getElementById('input-process-id').value;
+        const rId = recipeSelect ? cleanId(recipeSelect.value) : 1;
 
         if (!name) {
           showToast('請輸入批次名稱');
@@ -726,14 +861,15 @@
         performCloudSyncAction(() => {
           if (editId) {
             // Edit existing
-            const idx = processes.findIndex(p => p.id === Number(editId));
+            const idx = processes.findIndex(p => cleanId(p.id) === cleanId(editId));
             if (idx !== -1) {
               processes[idx].name = name;
               processes[idx].startDate = startDate;
+              processes[idx].recipeId = rId;
             }
           } else {
             // Add new
-            const proc = { id: generateId(), name: name, startDate: startDate };
+            const proc = { id: generateId(), name: name, startDate: startDate, recipeId: rId };
             processes.push(proc);
             currentProcessId = proc.id;
           }
@@ -749,13 +885,21 @@
 
   function updateProcessDatePreview(dateStr) {
     if (!dateStr) return;
-    PROCESS_DAYS.forEach(day => {
-      const el = document.getElementById('preview-' + day.toLowerCase());
-      if (el) {
-        const actual = addDays(dateStr, DAY_OFFSETS[day]);
-        el.textContent = formatShortDate(actual);
-      }
-    });
+    const recipeSelect = document.getElementById('input-process-recipe');
+    const rId = recipeSelect ? cleanId(recipeSelect.value) : 1;
+    const recipe = recipes.find(r => cleanId(r.id) === cleanId(rId)) || DEFAULT_RECIPES[0];
+    const procDays = getRecipeProcessDays(recipe);
+
+    const previewDaysContainer = document.getElementById('preview-days');
+    if (previewDaysContainer) {
+      let previewHtml = '';
+      procDays.forEach(day => {
+        const offset = parseInt(day.substring(1), 10) || 0;
+        const actual = addDays(dateStr, offset);
+        previewHtml += `<div class="day-badge small"><span class="day-label">${day}</span><span class="day-date">${formatShortDate(actual)}</span></div>`;
+      });
+      previewDaysContainer.innerHTML = previewHtml;
+    }
   }
 
   function deleteProcessConfirm(processId) {
@@ -914,10 +1058,10 @@
     container.querySelectorAll('.pill-delete').forEach(btn => {
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
-        const id = Number(this.getAttribute('data-id'));
+        const id = cleanId(this.getAttribute('data-id'));
         targetProcessId = id;
         
-        const proc = processes.find(p => p.id === id);
+        const proc = findProcess(id);
         const msgEl = document.getElementById('process-action-message');
         if (msgEl && proc) {
           msgEl.innerHTML = '請選擇要結束「<strong>' + escapeHtml(proc.name) + '</strong>」並封存資料，或是直接將其刪除？';
@@ -944,7 +1088,7 @@
     const dateCard = document.getElementById('process-date-card');
     const chartCard = document.getElementById('dashboard-chart-card');
     const dashMaterials = document.getElementById('dashboard-materials');
-    const proc = processes.find(p => p.id === currentProcessId);
+    const proc = findProcess(currentProcessId);
 
     if (!proc) {
       // No process selected
@@ -962,105 +1106,83 @@
     if (dateCard) dateCard.style.display = '';
     if (chartCard) chartCard.style.display = '';
     document.getElementById('process-date-title').textContent = proc.name;
-    PROCESS_DAYS.forEach(day => {
-      const el = document.getElementById('day-' + day.toLowerCase());
-      if (el) el.textContent = formatShortDate(getProcessDayDate(day, proc));
-    });
 
-    // Highlight today's day
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    const procDays = getRecipeProcessDays(recipe);
+
+    // Dynamic process days rendering
     const processDays = document.getElementById('process-days');
     if (processDays) {
-      processDays.querySelectorAll('.day-badge').forEach(badge => {
-        const dayKey = badge.getAttribute('data-day');
-        if (dayKey) {
-          const dayDate = getProcessDayDate(dayKey, proc);
-          const today = todayISO();
-          badge.classList.toggle('today', dayDate === today);
-        }
+      let daysHtml = '';
+      const today = todayISO();
+      procDays.forEach(day => {
+        const dayDate = getProcessDayDate(day, proc);
+        const isToday = dayDate === today;
+        daysHtml += `<div class="day-badge ${isToday ? 'today' : ''}" data-day="${day}">` +
+          `<span class="day-label">${day}</span>` +
+          `<span class="day-date">${formatShortDate(dayDate)}</span>` +
+          `</div>`;
+      });
+      processDays.innerHTML = daysHtml;
+    }
+
+    // Dynamic filter pills rendering
+    const filterPillsContainer = document.getElementById('filter-pills');
+    if (filterPillsContainer) {
+      let pillsHtml = `<button class="pill ${dashboardFilter === 'all' ? 'active' : ''}" data-filter="all">全部</button>`;
+      procDays.forEach(day => {
+        pillsHtml += `<button class="pill ${dashboardFilter === day ? 'active' : ''}" data-filter="${day}">${day}</button>`;
+      });
+      filterPillsContainer.innerHTML = pillsHtml;
+      
+      // Bind click events
+      filterPillsContainer.querySelectorAll('.pill').forEach(btn => {
+        btn.addEventListener('click', function () {
+          filterPillsContainer.querySelectorAll('.pill').forEach(b => b.classList.remove('active'));
+          this.classList.add('active');
+          dashboardFilter = this.getAttribute('data-filter');
+          renderDashboardMaterials();
+        });
       });
     }
 
     renderDashboardMaterials();
   }
 
-  function getMaterialStatus(material, processId) {
-    const proc = processes.find(p => p.id === processId);
-    const batches = getMaterialBatches(material.id, processId, false);
-    const stock = batches.reduce((s, b) => s + b.remainingQty, 0);
-
-    const sterRecs = sterilizationRecords.filter(r => r.processId === processId && r.materialId === material.id);
-    const useRecs = usageRecords.filter(r => r.processId === processId && r.materialId === material.id);
-    const totalSterilized = sterRecs.reduce((s, r) => s + r.qty, 0);
-    const totalUsed = useRecs.reduce((s, r) => s + r.qty, 0);
-
-    // Calculate usable stock on the process day date
-    let usableStock = 0;
-    const processDayDate = proc ? getProcessDayDate(material.processDay, proc) : null;
-    batches.forEach(b => {
-      if (!processDayDate || b.expiryDate >= processDayDate) {
-        usableStock += b.remainingQty;
-      }
-    });
-
-    // Check if any active batch is expiring soon (remaining days <= 15 days relative to today)
-    let hasExpiringSoon = false;
-    let nearestExpiry = null;
-    let expiryStatus = 'valid';
-    batches.forEach(b => {
-      if (!nearestExpiry || b.expiryDate < nearestExpiry) {
-        nearestExpiry = b.expiryDate;
-      }
-      const daysLeft = getDaysRemaining(b.expiryDate);
-      if (daysLeft >= 0 && daysLeft <= 15) {
-        hasExpiringSoon = true;
-      }
-    });
-    if (nearestExpiry) {
-      expiryStatus = getExpiryStatus(nearestExpiry);
-    }
-
-    // Determine overall status
-    let status = 'ok';
-    if (stock < material.requiredQty || (material.requiredQty > 0 && usableStock === 0)) {
-      status = 'danger'; // 庫存量小於需求量顯示不足，或是可用數量為0
-    } else if (usableStock < material.requiredQty || hasExpiringSoon) {
-      status = 'warn'; // 庫存量足夠但可使用量小於需求量，或是快過期，顯示注意
-    }
-
-    return {
-      totalSterilized,
-      totalUsed,
-      stock,
-      usableStock,
-      nearestExpiry,
-      expiryStatus,
-      status,
-    };
-  }
-
   function renderDashboardMaterials() {
     const container = document.getElementById('dashboard-materials');
     if (!container) return;
 
-    const proc = processes.find(p => p.id === currentProcessId);
+    const proc = findProcess(currentProcessId);
     if (!proc) {
       container.innerHTML = renderEmptyState('process', 'process');
       return;
     }
+
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    const procDays = getRecipeProcessDays(recipe);
 
     let statTotal = 0, statOk = 0, statWarn = 0, statDanger = 0;
     const filteredMaterials = [];
 
     materials.forEach(mat => {
       const info = getMaterialStatus(mat, currentProcessId);
+      if (info.requiredQty === 0) return; // Skip materials not configured in the recipe
+      
       statTotal++;
       if (info.status === 'ok') statOk++;
       else if (info.status === 'warn') statWarn++;
       else if (info.status === 'danger') statDanger++;
 
       // Filter
-      if (dashboardFilter !== 'all' && mat.processDay !== dashboardFilter) return;
-      filteredMaterials.push({ mat, info });
+      if (dashboardFilter !== 'all' && info.processDay !== dashboardFilter) return;
+      
+      const enrichedMat = {
+        ...mat,
+        requiredQty: info.requiredQty,
+        processDay: info.processDay
+      };
+      filteredMaterials.push({ mat: enrichedMat, info });
     });
 
     // Update Stats text
@@ -1096,7 +1218,7 @@
 
     // Group materials by processDay
     const groups = {};
-    PROCESS_DAYS.forEach(day => { groups[day] = []; });
+    procDays.forEach(day => { groups[day] = []; });
     filteredMaterials.forEach(item => {
       const day = item.mat.processDay;
       if (!groups[day]) groups[day] = [];
@@ -1104,9 +1226,9 @@
     });
 
     let html = '';
-    PROCESS_DAYS.forEach(day => {
+    procDays.forEach(day => {
       const items = groups[day];
-      if (items.length === 0) return;
+      if (!items || items.length === 0) return;
       const dayDate = getProcessDayDate(day, proc);
       html += '<div class="tile-group">';
       html += '<div class="tile-group-header">' + day + ' — ' + formatShortDate(dayDate) + '</div>';
@@ -1286,7 +1408,7 @@
     if (invSelect) {
       invSelect.addEventListener('change', function () {
         const val = this.value;
-        currentInventoryProcessId = val === 'all' ? 'all' : Number(val);
+        currentInventoryProcessId = val === 'all' ? 'all' : cleanId(val);
         renderMaterialsList();
       });
     }
@@ -1297,29 +1419,27 @@
     const filePreview = document.getElementById('material-file-preview');
     const imgPreview = document.getElementById('img-file-preview');
     const btnClearFile = document.getElementById('btn-clear-file-icon');
-    const customIconInput = document.getElementById('input-material-custom-icon');
     const iconInput = document.getElementById('input-material-icon');
-    const picker = document.getElementById('icon-picker');
+    const urlIconInput = document.getElementById('input-material-url-icon');
 
     if (btnAdd) {
       btnAdd.addEventListener('click', function () {
-        document.getElementById('modal-material-title').textContent = '新增耗材';
+        document.getElementById('modal-material-title').textContent = '新增物料';
         document.getElementById('input-material-name').value = '';
         document.getElementById('input-material-icon').value = '📦';
-        if (customIconInput) customIconInput.value = '';
-        document.getElementById('input-material-qty').value = '1';
-        document.getElementById('input-material-day').value = 'D0';
+        if (urlIconInput) urlIconInput.value = '';
         document.getElementById('input-material-id').value = '';
+        
+        // Hide quantity and day configs since they are recipe-dependent
+        const formRow = document.querySelector('#form-material .form-row');
+        if (formRow) formRow.style.display = 'none';
         
         // Reset file upload
         if (fileInput) fileInput.value = '';
         if (filePreview) filePreview.style.display = 'none';
         if (imgPreview) imgPreview.src = '';
-
-        // Reset icon picker
-        document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
-          opt.classList.toggle('selected', opt.getAttribute('data-icon') === '📦');
-        });
+        
+        formMaterialContext = 'library';
         openModal('material');
       });
     }
@@ -1334,14 +1454,25 @@
           if (imgPreview) imgPreview.src = compressedDataUrl;
           if (filePreview) filePreview.style.display = 'flex';
 
-          // Clear emoji picker selection & custom icon text input
-          if (picker) {
-            picker.querySelectorAll('.icon-option').forEach(o => o.classList.remove('selected'));
-          }
-          if (customIconInput) {
-            customIconInput.value = '';
+          if (urlIconInput) {
+            urlIconInput.value = '';
           }
         });
+      });
+    }
+
+    if (urlIconInput) {
+      urlIconInput.addEventListener('input', function () {
+        const val = this.value.trim();
+        if (val) {
+          if (iconInput) iconInput.value = val;
+          // Clear file upload
+          if (fileInput) fileInput.value = '';
+          if (filePreview) filePreview.style.display = 'none';
+          if (imgPreview) imgPreview.src = '';
+        } else {
+          if (iconInput) iconInput.value = '📦';
+        }
       });
     }
 
@@ -1351,15 +1482,8 @@
         if (filePreview) filePreview.style.display = 'none';
         if (imgPreview) imgPreview.src = '';
         if (iconInput) iconInput.value = '📦';
-
-        // Reset to default emoji selection in picker
-        if (picker) {
-          picker.querySelectorAll('.icon-option').forEach(opt => {
-            opt.classList.toggle('selected', opt.getAttribute('data-icon') === '📦');
-          });
-        }
-        if (customIconInput) {
-          customIconInput.value = '';
+        if (urlIconInput) {
+          urlIconInput.value = '';
         }
       });
     }
@@ -1369,30 +1493,29 @@
         e.preventDefault();
         const name = document.getElementById('input-material-name').value.trim();
         const icon = document.getElementById('input-material-icon').value || '📦';
-        const qty = parseInt(document.getElementById('input-material-qty').value, 10) || 1;
-        const day = document.getElementById('input-material-day').value;
         const editId = document.getElementById('input-material-id').value;
 
         if (!name) {
-          showToast('請輸入耗材名稱');
+          showToast('請輸入品項名稱');
           return;
         }
 
         performCloudSyncAction(() => {
           if (editId) {
-            const idx = materials.findIndex(m => m.id === Number(editId));
+            const idx = materials.findIndex(m => cleanId(m.id) === cleanId(editId));
             if (idx !== -1) {
               materials[idx].name = name;
               materials[idx].icon = icon;
-              materials[idx].requiredQty = qty;
-              materials[idx].processDay = day;
             }
           } else {
-            materials.push({ id: generateId(), name, icon, requiredQty: qty, processDay: day });
+            materials.push({ id: generateId(), name, icon });
           }
         }, () => {
           closeModal('material');
-          showToast(editId ? '耗材已更新' : '耗材已新增');
+          showToast(editId ? '物料已更新' : '物料已新增');
+          if (formMaterialContext === 'library') {
+            renderMaterialLibrary();
+          }
           renderMaterialsList();
           renderDashboard();
           renderSterilizationHistory();
@@ -1403,59 +1526,11 @@
   }
 
   function initIconPicker() {
-    const picker = document.getElementById('icon-picker');
-    if (!picker) return;
-
-    // Populate icons
-    let html = '';
-    ICON_OPTIONS.forEach(icon => {
-      html += '<button type="button" class="icon-option" data-icon="' + icon + '">' + icon + '</button>';
-    });
-    picker.innerHTML = html;
-
-    picker.addEventListener('click', function (e) {
-      const opt = e.target.closest('.icon-option');
-      if (!opt) return;
-      picker.querySelectorAll('.icon-option').forEach(o => o.classList.remove('selected'));
-      opt.classList.add('selected');
-      document.getElementById('input-material-icon').value = opt.getAttribute('data-icon');
-
-      const customIconInput = document.getElementById('input-material-custom-icon');
-      if (customIconInput) {
-        customIconInput.value = '';
-      }
-
-      // Clear file upload
-      const fileInput = document.getElementById('input-material-file-icon');
-      const filePreview = document.getElementById('material-file-preview');
-      const imgPreview = document.getElementById('img-file-preview');
-      if (fileInput) fileInput.value = '';
-      if (filePreview) filePreview.style.display = 'none';
-      if (imgPreview) imgPreview.src = '';
-    });
-
-    const customIconInput = document.getElementById('input-material-custom-icon');
-    if (customIconInput) {
-      customIconInput.addEventListener('input', function () {
-        const val = this.value.trim();
-        picker.querySelectorAll('.icon-option').forEach(o => o.classList.remove('selected'));
-        document.getElementById('input-material-icon').value = val || '📦';
-
-        // Clear file upload
-        if (val) {
-          const fileInput = document.getElementById('input-material-file-icon');
-          const filePreview = document.getElementById('material-file-preview');
-          const imgPreview = document.getElementById('img-file-preview');
-          if (fileInput) fileInput.value = '';
-          if (filePreview) filePreview.style.display = 'none';
-          if (imgPreview) imgPreview.src = '';
-        }
-      });
-    }
+    // Left empty since emoji picker was removed
   }
 
   function editMaterial(id) {
-    const mat = materials.find(m => m.id === id);
+    const mat = findMaterial(id);
     if (!mat) return;
     document.getElementById('modal-material-title').textContent = '編輯耗材';
     document.getElementById('input-material-name').value = mat.name;
@@ -1467,36 +1542,32 @@
     const fileInput = document.getElementById('input-material-file-icon');
     const filePreview = document.getElementById('material-file-preview');
     const imgPreview = document.getElementById('img-file-preview');
-    const customIconInput = document.getElementById('input-material-custom-icon');
+    const urlIconInput = document.getElementById('input-material-url-icon');
 
     if (fileInput) fileInput.value = '';
 
-    const isImage = mat.icon && (mat.icon.startsWith('data:image/') || mat.icon.startsWith('http') || mat.icon.startsWith('blob:'));
-    const isPreset = ICON_OPTIONS.includes(mat.icon);
+    const isDataOrBlob = mat.icon && (mat.icon.startsWith('data:image/') || mat.icon.startsWith('blob:'));
+    const isUrl = mat.icon && (mat.icon.startsWith('http://') || mat.icon.startsWith('https://'));
 
-    if (isImage) {
-      if (customIconInput) customIconInput.value = '';
+    if (isDataOrBlob) {
+      if (urlIconInput) urlIconInput.value = '';
       if (filePreview) filePreview.style.display = 'flex';
       if (imgPreview) imgPreview.src = mat.icon;
-      document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
-        opt.classList.remove('selected');
-      });
-    } else {
+    } else if (isUrl) {
+      if (urlIconInput) urlIconInput.value = mat.icon;
       if (filePreview) filePreview.style.display = 'none';
       if (imgPreview) imgPreview.src = '';
-      if (customIconInput) {
-        customIconInput.value = isPreset ? '' : mat.icon;
-      }
-      document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
-        opt.classList.toggle('selected', isPreset && opt.getAttribute('data-icon') === mat.icon);
-      });
+    } else {
+      if (urlIconInput) urlIconInput.value = mat.icon || '';
+      if (filePreview) filePreview.style.display = 'none';
+      if (imgPreview) imgPreview.src = '';
     }
 
     openModal('material');
   }
 
   function deleteMaterial(id) {
-    const mat = materials.find(m => m.id === id);
+    const mat = findMaterial(id);
     if (!mat) return;
     showConfirm('確定刪除「' + mat.name + '」？\n相關的滅菌及使用紀錄也將被刪除。', function () {
       performCloudSyncAction(() => {
@@ -1528,21 +1599,42 @@
       return;
     }
 
-    // Group by processDay
+    // Group by processDay based on active process and recipe configuration
     const groups = {};
-    PROCESS_DAYS.forEach(day => { groups[day] = []; });
-    materials.forEach(mat => {
-      if (!groups[mat.processDay]) groups[mat.processDay] = [];
-      groups[mat.processDay].push(mat);
-    });
+    let procDays = [];
+
+    if (currentInventoryProcessId !== 'all') {
+      const proc = findProcess(currentInventoryProcessId);
+      const recipe = proc ? (findRecipe(proc.recipeId) || DEFAULT_RECIPES[0]) : null;
+      if (recipe) {
+        procDays = getRecipeProcessDays(recipe);
+        procDays.forEach(day => { groups[day] = []; });
+        recipe.requirements.forEach(req => {
+          const mat = findMaterial(req.materialId);
+          if (!mat) return;
+          const enrichedMat = {
+            ...mat,
+            requiredQty: req.requiredQty,
+            processDay: req.processDay
+          };
+          if (!groups[req.processDay]) groups[req.processDay] = [];
+          groups[req.processDay].push(enrichedMat);
+        });
+      } else {
+        procDays = ['所有物料品項'];
+        groups['所有物料品項'] = materials.map(mat => ({ ...mat, requiredQty: 0, processDay: 'all' }));
+      }
+    } else {
+      procDays = ['所有物料品項'];
+      groups['所有物料品項'] = materials.map(mat => ({ ...mat, requiredQty: 0, processDay: 'all' }));
+    }
 
     let html = '';
-    PROCESS_DAYS.forEach(day => {
+    procDays.forEach(day => {
       const items = groups[day];
-      if (items.length === 0) return;
-      html += '<div class="tile-group">';
-      html += '<div class="tile-group-header">' + day + '</div>';
-      html += '<div class="tile-group-grid">';
+      if (!items || items.length === 0) return;
+      
+      let tilesHtml = '';
       items.forEach(mat => {
         const totalSter = sterilizationRecords.filter(r => r.materialId === mat.id).reduce((s, r) => s + r.qty, 0);
         
@@ -1561,9 +1653,11 @@
           if (expiredStock > 0) {
             stockText = '可用庫存: ' + validStock + ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
           }
-          stockText = '需求: ' + mat.requiredQty + ' ｜ ' + stockText;
-          if (validStock < mat.requiredQty) {
-            stockText += ' ｜ <span style="color: var(--danger); font-weight: 600;">不足</span>';
+          if (mat.requiredQty > 0) {
+            stockText = '需求: ' + mat.requiredQty + ' ｜ ' + stockText;
+            if (validStock < mat.requiredQty) {
+              stockText += ' ｜ <span style="color: var(--danger); font-weight: 600;">不足</span>';
+            }
           }
           
           const info = getMaterialStatus(mat, currentInventoryProcessId);
@@ -1573,6 +1667,8 @@
           validStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) >= 0).reduce((sum, b) => sum + b.remainingQty, 0);
           expiredStock = activeBatches.filter(b => getDaysRemaining(b.expiryDate) < 0).reduce((sum, b) => sum + b.remainingQty, 0);
           
+
+
           stockText = '可用庫存: ' + validStock;
           if (expiredStock > 0) {
             stockText = '可用庫存: ' + validStock + ' ｜ <span style="color: var(--danger); font-weight: 600;">已過期: ' + expiredStock + '</span>';
@@ -1581,11 +1677,22 @@
           status = validStock > 0 ? 'ok' : 'danger';
         }
 
-        const badgeHtml = '<div class="tile-stock-badge">' + validStock + '</div>';
+        let tagHtml = '';
+        if (validStock > 0) {
+          if (currentInventoryProcessId !== 'all' && mat.requiredQty > 0 && validStock < mat.requiredQty) {
+            tagHtml = `<span class="notion-tag yellow">🟡 庫存不足 (${validStock}/${mat.requiredQty})</span>`;
+          } else {
+            tagHtml = `<span class="notion-tag green">🟢 已滅菌 (${validStock})</span>`;
+          }
+        } else {
+          tagHtml = '<span class="notion-tag red">🔴 尚未滅菌</span>';
+        }
+
+        const badgeHtml = `<div style="position: absolute; top: 12px; right: 12px;">${tagHtml}</div>`;
 
         let detailPanelHtml = '';
         let expandedClass = '';
-        if (!inventoryEditMode && activeBatches.length > 0) {
+        if (activeBatches.length > 0) {
           const isExpanded = expandedInventoryCardIds.has(mat.id);
           if (isExpanded) expandedClass = ' expanded';
           
@@ -1624,23 +1731,28 @@
             '</div>';
         }
 
-        const actionsOverlayHtml = inventoryEditMode ? 
-          ('<div class="tile-actions-overlay" style="display: flex;">' +
-          '<button class="tile-action-btn btn-edit-mat" data-id="' + mat.id + '" title="編輯">✏️</button>' +
-          '<button class="tile-action-btn btn-del-mat" data-id="' + mat.id + '" title="刪除">🗑️</button>' +
-          '</div>') : '';
-
-        html += '<div class="material-tile' + expandedClass + '" data-id="' + mat.id + '">' +
+        tilesHtml += '<div class="material-tile' + expandedClass + '" data-id="' + mat.id + '" style="position: relative; padding-top: 16px;">' +
           badgeHtml +
-          actionsOverlayHtml +
           '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
-          '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
+          '<div class="tile-name" style="margin-top: 8px;">' + escapeHtml(mat.name) + '</div>' +
           '<div class="tile-stock">' + stockText + '</div>' +
           detailPanelHtml +
           '</div>';
       });
-      html += '</div></div>';
+
+      if (tilesHtml !== '') {
+        html += '<div class="tile-group">';
+        html += '<div class="tile-group-header">' + day + '</div>';
+        html += '<div class="tile-group-grid">';
+        html += tilesHtml;
+        html += '</div></div>';
+      }
     });
+
+    if (html === '') {
+      container.innerHTML = renderEmptyState('material', 'material');
+      return;
+    }
 
     container.innerHTML = html;
 
@@ -1709,7 +1821,6 @@
     const processSelect = document.getElementById('ster-process-select');
     const batchDate = document.getElementById('ster-batch-date');
     const btnSave = document.getElementById('btn-save-sterilization');
-    const btnExport = document.getElementById('btn-export-sterilization');
 
     if (processSelect) {
       processSelect.addEventListener('change', function () {
@@ -1722,7 +1833,9 @@
         if (usageSelect) usageSelect.value = processId || '';
         renderProcessPills();
         
+        // Clear selected items (user will manually click to select)
         sterSelectedIds.clear();
+        
         renderSterilizationTiles();
         renderSterilizationHistory();
         updateSterBatchInput();
@@ -1740,13 +1853,6 @@
 
     if (btnSave) {
       btnSave.addEventListener('click', saveSterilization);
-    }
-
-    if (btnExport) {
-      btnExport.addEventListener('click', function (e) {
-        e.stopPropagation();
-        exportSterilizationToCsv();
-      });
     }
 
     const headerSter = document.getElementById('header-ster-history');
@@ -1777,7 +1883,7 @@
 
   function exportSterilizationToCsv() {
     const processId = getSelectedProcessId('ster-process-select');
-    const proc = processes.find(p => p.id === processId);
+    const proc = findProcess(processId);
     if (!proc) {
       showToast('請先選擇製程批次');
       return;
@@ -1794,7 +1900,7 @@
 
     let csvContent = "製程批次,滅菌日期,物料名稱,滅菌數量,有效期限,剩餘天數,狀態\n";
     recs.forEach(rec => {
-      const mat = materials.find(m => m.id === rec.materialId);
+      const mat = findMaterial(rec.materialId);
       const matName = mat ? mat.name : '（已刪除）';
       const days = getDaysRemaining(rec.expiryDate);
       let status = '充足';
@@ -1849,29 +1955,40 @@
     if (!container) return;
 
     const processId = getSelectedProcessId('ster-process-select');
-    const proc = processes.find(p => p.id === processId);
+    const proc = findProcess(processId);
 
     if (!proc || materials.length === 0) {
       container.innerHTML = renderEmptyState(proc ? 'material' : 'process', proc ? 'material' : 'process');
       return;
     }
 
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    const procDays = getRecipeProcessDays(recipe);
+
     const searchInput = document.getElementById('ster-mat-search-input');
     const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
-    // Group materials by processDay
+    // Group materials by processDay based on recipe requirements
     const groups = {};
-    PROCESS_DAYS.forEach(day => { groups[day] = []; });
-    materials.forEach(mat => {
+    procDays.forEach(day => { groups[day] = []; });
+    recipe.requirements.forEach(req => {
+      const mat = findMaterial(req.materialId);
+      if (!mat) return;
       if (searchVal && !mat.name.toLowerCase().includes(searchVal)) return;
-      if (!groups[mat.processDay]) groups[mat.processDay] = [];
-      groups[mat.processDay].push(mat);
+
+      const enrichedMat = {
+        ...mat,
+        requiredQty: req.requiredQty,
+        processDay: req.processDay
+      };
+      if (!groups[req.processDay]) groups[req.processDay] = [];
+      groups[req.processDay].push(enrichedMat);
     });
 
     let html = '';
-    PROCESS_DAYS.forEach(day => {
+    procDays.forEach(day => {
       const items = groups[day];
-      if (items.length === 0) return;
+      if (!items || items.length === 0) return;
       const dayDate = getProcessDayDate(day, proc);
       html += '<div class="tile-group">';
       html += '<div class="tile-group-header">' + day + ' — ' + formatShortDate(dayDate) + '</div>';
@@ -1879,16 +1996,30 @@
       items.forEach(mat => {
         const isSelected = sterSelectedIds.has(mat.id);
         const stock = getStock(mat.id, processId);
-        html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '">' +
-          '<div class="tile-check">✓</div>' +
+        const deficit = mat.requiredQty - stock;
+        
+        let tagHtml = '';
+        let defaultQty = mat.requiredQty;
+        
+        if (deficit <= 0) {
+          tagHtml = '<span class="notion-tag green" style="font-size: 10px; padding: 2px 6px;">已補足</span>';
+          defaultQty = mat.requiredQty;
+        } else {
+          tagHtml = `<span class="notion-tag yellow" style="font-size: 10px; padding: 2px 6px;">待補: ${deficit}</span>`;
+          defaultQty = deficit;
+        }
+
+        html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '" style="position: relative;">' +
+          '<div class="tile-check"></div>' +
+          '<div style="position: absolute; top: 8px; right: 8px;">' + tagHtml + '</div>' +
           '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
-          '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
+          '<div class="tile-name" style="margin-top: 8px;">' + escapeHtml(mat.name) + '</div>' +
           '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 庫存: ' + stock + '</div>' +
           '<div class="tile-qty-container">' +
           '<span class="tile-qty-label">數量</span>' +
           '<div class="qty-adjust-wrap">' +
           '<button type="button" class="btn-qty-adj btn-dec">-</button>' +
-          '<input type="number" class="tile-qty-input" min="1" value="' + mat.requiredQty + '" data-id="' + mat.id + '">' +
+          '<input type="number" class="tile-qty-input" min="1" value="' + defaultQty + '" data-id="' + mat.id + '">' +
           '<button type="button" class="btn-qty-adj btn-inc">+</button>' +
           '</div>' +
           '</div>' +
@@ -1925,7 +2056,7 @@
       batchInput.style.display = sterSelectedIds.size > 0 ? 'block' : 'none';
     }
     if (countEl) {
-      countEl.textContent = '已選擇 ' + sterSelectedIds.size + ' 項耗材';
+      countEl.textContent = sterSelectedIds.size;
     }
   }
 
@@ -2000,7 +2131,7 @@
       .filter(r => sterHistoryFilter === 'all' || r.materialId === sterHistoryFilter)
       .filter(r => {
         if (!searchVal) return true;
-        const mat = materials.find(m => m.id === r.materialId);
+        const mat = findMaterial(r.materialId);
         const nameMatch = mat ? mat.name.toLowerCase().includes(searchVal) : false;
         
         const rawDate = r.sterilizationDate.toLowerCase();
@@ -2039,7 +2170,7 @@
         '<tbody>';
       
       recs.forEach(rec => {
-        const mat = materials.find(m => m.id === rec.materialId);
+        const mat = findMaterial(rec.materialId);
         const matName = mat ? (renderIconHtml(mat.icon, '16px') + ' ' + escapeHtml(mat.name)) : '（已刪除）';
         const daysLeft = getDaysRemaining(rec.expiryDate);
         let badgeText = '';
@@ -2184,29 +2315,40 @@
     if (!container) return;
 
     const processId = getSelectedProcessId('usage-process-select');
-    const proc = processes.find(p => p.id === processId);
+    const proc = findProcess(processId);
 
     if (!proc || materials.length === 0) {
       container.innerHTML = renderEmptyState(proc ? 'material' : 'process', proc ? 'material' : 'process');
       return;
     }
 
+    const recipe = findRecipe(proc.recipeId) || DEFAULT_RECIPES[0];
+    const procDays = getRecipeProcessDays(recipe);
+
     const searchInput = document.getElementById('usage-mat-search-input');
     const searchVal = searchInput ? searchInput.value.trim().toLowerCase() : '';
 
-    // Group materials by processDay
+    // Group materials by processDay based on recipe requirements
     const groups = {};
-    PROCESS_DAYS.forEach(day => { groups[day] = []; });
-    materials.forEach(mat => {
+    procDays.forEach(day => { groups[day] = []; });
+    recipe.requirements.forEach(req => {
+      const mat = findMaterial(req.materialId);
+      if (!mat) return;
       if (searchVal && !mat.name.toLowerCase().includes(searchVal)) return;
-      if (!groups[mat.processDay]) groups[mat.processDay] = [];
-      groups[mat.processDay].push(mat);
+
+      const enrichedMat = {
+        ...mat,
+        requiredQty: req.requiredQty,
+        processDay: req.processDay
+      };
+      if (!groups[req.processDay]) groups[req.processDay] = [];
+      groups[req.processDay].push(enrichedMat);
     });
 
     let html = '';
-    PROCESS_DAYS.forEach(day => {
+    procDays.forEach(day => {
       const items = groups[day];
-      if (items.length === 0) return;
+      if (!items || items.length === 0) return;
       const dayDate = getProcessDayDate(day, proc);
       html += '<div class="tile-group">';
       html += '<div class="tile-group-header">' + day + ' — ' + formatShortDate(dayDate) + '</div>';
@@ -2269,7 +2411,7 @@
           });
 
           html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '">' +
-            '<div class="tile-check">✓</div>' +
+            '<div class="tile-check"></div>' +
             '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
             '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
             '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 總庫存: ' + totalStock + '</div>' +
@@ -2289,7 +2431,7 @@
             '</div>';
         } else {
           html += '<div class="material-tile disabled" data-id="' + mat.id + '">' +
-            '<div class="tile-check">✓</div>' +
+            '<div class="tile-check"></div>' +
             '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
             '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
             '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 庫存: 0</div>' +
@@ -2362,7 +2504,7 @@
       batchInput.style.display = usageSelectedIds.size > 0 ? 'block' : 'none';
     }
     if (countEl) {
-      countEl.textContent = '已選擇 ' + usageSelectedIds.size + ' 項耗材';
+      countEl.textContent = usageSelectedIds.size;
     }
   }
 
@@ -2403,6 +2545,16 @@
       const targetProcId = Number(parts[0]);
       const targetExpiryDate = parts[1];
       
+      const isExpired = getDaysRemaining(targetExpiryDate) < 0;
+      if (isExpired) {
+        const mat = findMaterial(materialId);
+        const confirmUse = confirm(`⚠️ 警告：此批「${mat ? mat.name : '物料'}」已過期（有效期限為 ${targetExpiryDate}）。\n確定仍要強行使用嗎？（系統會自動在備註中標記「[過期使用]」）`);
+        if (!confirmUse) {
+          hasError = true;
+          return;
+        }
+      }
+
       const input = document.querySelector('#usage-tile-groups .tile-qty-input[data-id="' + materialId + '"]');
       const qty = input ? parseInt(input.value, 10) || 1 : 1;
       
@@ -2411,7 +2563,7 @@
       const stock = matches.reduce((sum, b) => sum + b.remainingQty, 0);
 
       if (qty > stock) {
-        const mat = materials.find(m => m.id === materialId);
+        const mat = findMaterial(materialId);
         showToast('「' + (mat ? mat.name : '') + '」該批次庫存不足 (庫存: ' + stock + ')');
         hasError = true;
         return;
@@ -2430,7 +2582,8 @@
             materialId: materialId,
             sterilizationRecordId: batch.id,
             qty: deduct,
-            date: today,
+            usageDate: today,
+            remark: isExpired ? '[過期使用]' : ''
           });
           usageLeft -= deduct;
         }
@@ -2475,11 +2628,12 @@
       .filter(r => usageHistoryFilter === 'all' || r.materialId === usageHistoryFilter)
       .filter(r => {
         if (!searchVal) return true;
-        const mat = materials.find(m => m.id === r.materialId);
+        const mat = findMaterial(r.materialId);
         const nameMatch = mat ? mat.name.toLowerCase().includes(searchVal) : false;
         
-        const rawDate = r.date.toLowerCase();
-        const formattedDate = formatDate(r.date).toLowerCase();
+        const dateVal = r.usageDate || r.date || '';
+        const rawDate = dateVal.toLowerCase();
+        const formattedDate = formatDate(dateVal).toLowerCase();
         const cleanSearchVal = searchVal.replace(/[-/]/g, '');
         const cleanRawDate = rawDate.replace(/[-/]/g, '');
         
@@ -2490,7 +2644,9 @@
         return nameMatch || dateMatch;
       })
       .sort((a, b) => {
-        const comp = a.date.localeCompare(b.date);
+        const dateA = a.usageDate || a.date || '';
+        const dateB = b.usageDate || b.date || '';
+        const comp = dateA.localeCompare(dateB);
         return (usageHistorySortOrder === 'desc' ? -1 : 1) * comp || (a.id - b.id);
       });
 
@@ -2512,7 +2668,7 @@
         '<tbody>';
       
       recs.forEach(rec => {
-        const mat = materials.find(m => m.id === rec.materialId);
+        const mat = findMaterial(rec.materialId);
         const matName = mat ? (renderIconHtml(mat.icon, '16px') + ' ' + escapeHtml(mat.name)) : '（已刪除）';
         
         const sterRec = sterilizationRecords.find(sr => sr.id === rec.sterilizationRecordId);
@@ -2528,8 +2684,9 @@
           }
         }
 
+        const displayDate = rec.usageDate || rec.date || '';
         tableHtml += '<tr>' +
-          '<td>' + formatDate(rec.date) + '</td>' +
+          '<td>' + formatDate(displayDate) + '</td>' +
           '<td>' + matName + '</td>' +
           '<td>' + rec.qty + ' 個</td>' +
           '<td>' + expiryText + '</td>' +
@@ -2602,7 +2759,7 @@
     const select = document.getElementById(selectId);
     if (!select) return null;
     const val = select.value;
-    return val ? Number(val) : null;
+    return val ? cleanId(val) : null;
   }
 
   function escapeHtml(str) {
@@ -2687,10 +2844,6 @@
 
     if (btnManualSync) {
       btnManualSync.addEventListener('click', function () {
-        if (!gasUrl) {
-          showToast('請先輸入並儲存雲端同步網址');
-          return;
-        }
         hasSyncedFromCloud = false;
         syncWithCloud();
       });
@@ -2707,30 +2860,408 @@
     
     if (btnSaveGasUrl && inputGasUrl) {
       btnSaveGasUrl.addEventListener('click', function () {
-        const urlVal = inputGasUrl.value.trim();
-        gasUrl = urlVal;
-        localStorage.setItem('cpi_gas_url', urlVal);
-        showToast('已儲存雲端同步網址');
         hasSyncedFromCloud = false;
         syncWithCloud();
       });
     }
+
+    // Material Library & Recipes Manager triggers
+    const btnLibMat = document.getElementById('btn-open-material-library');
+    if (btnLibMat) {
+      btnLibMat.addEventListener('click', function () {
+        closeModal('settings');
+        renderMaterialLibrary();
+        openModal('material-library');
+      });
+    }
+
+    const btnRecipeList = document.getElementById('btn-open-recipe-list');
+    if (btnRecipeList) {
+      btnRecipeList.addEventListener('click', function () {
+        closeModal('settings');
+        renderRecipeList();
+        openModal('recipe-list');
+      });
+    }
+  }
+
+  // ─── Material Library Controller ────────────────────────────────────
+  function renderMaterialLibrary() {
+    const listContainer = document.getElementById('library-material-list');
+    if (!listContainer) return;
+    let html = '';
+    if (materials.length === 0) {
+      html = '<div style="color: var(--text-secondary); text-align: center; padding: 20px;">物料庫目前為空。</div>';
+    } else {
+      materials.forEach(mat => {
+        html += `<div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 10px 14px; border-radius: var(--radius-md);">` +
+          `<div style="display: flex; align-items: center; gap: 12px;">` +
+          `<span style="font-size: 24px; display: flex; align-items: center;">${renderIconHtml(mat.icon, '28px')}</span>` +
+          `<span style="font-weight: 500; font-size: 14px;">${escapeHtml(mat.name)}</span>` +
+          `</div>` +
+          `<div style="display: flex; gap: 8px;">` +
+          `<button type="button" class="btn-secondary btn-edit-lib-mat" data-id="${mat.id}" style="padding: 6px 10px; font-size: 11px;">編輯</button>` +
+          `<button type="button" class="btn-danger btn-delete-lib-mat" data-id="${mat.id}" style="padding: 6px 10px; font-size: 11px;">刪除</button>` +
+          `</div>` +
+          `</div>`;
+      });
+    }
+    listContainer.innerHTML = html;
+
+    // Bind edit buttons
+    listContainer.querySelectorAll('.btn-edit-lib-mat').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const id = Number(this.getAttribute('data-id'));
+        const mat = findMaterial(id);
+        if (mat) {
+          document.getElementById('modal-material-title').textContent = '編輯物料品項';
+          document.getElementById('input-material-name').value = mat.name;
+          document.getElementById('input-material-id').value = mat.id;
+          
+          // Select icon option
+          document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
+            opt.classList.toggle('selected', opt.getAttribute('data-icon') === mat.icon);
+          });
+          document.getElementById('input-material-icon').value = mat.icon;
+
+          // Clear custom and file icon
+          document.getElementById('input-material-custom-icon').value = '';
+          const fileInput = document.getElementById('input-material-file-icon');
+          const previewWrap = document.getElementById('material-file-preview');
+          const previewImg = document.getElementById('img-file-preview');
+          if (fileInput) fileInput.value = '';
+          if (previewWrap && previewImg) {
+            if (mat.icon.startsWith('data:image/') || mat.icon.startsWith('http') || mat.icon.startsWith('blob:')) {
+              previewWrap.style.display = 'flex';
+              previewImg.src = mat.icon;
+            } else {
+              previewWrap.style.display = 'none';
+              previewImg.src = '';
+            }
+          }
+
+          const rowEl = document.querySelector('#form-material .form-row');
+          if (rowEl) rowEl.style.display = 'none';
+          
+          formMaterialContext = 'library';
+          openModal('material');
+        }
+      });
+    });
+
+    // Bind delete buttons
+    listContainer.querySelectorAll('.btn-delete-lib-mat').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const id = Number(this.getAttribute('data-id'));
+        showConfirm('確定要從物料庫刪除此品項嗎？這不會刪除已產生的滅菌與使用歷史紀錄，但相關配方中將無法再選用此物料。', function () {
+          performCloudSyncAction(() => {
+            materials = materials.filter(m => m.id !== id);
+            // Also clean up from recipes
+            recipes.forEach(r => {
+              r.requirements = r.requirements.filter(req => req.materialId !== id);
+            });
+            saveData();
+          }, () => {
+            showToast('物料品項已刪除');
+            renderMaterialLibrary();
+            renderMaterialsList();
+          });
+        });
+      });
+    });
+  }
+
+  // ─── Recipe Manager Controller ──────────────────────────────────────
+  function renderRecipeList() {
+    const listContainer = document.getElementById('recipe-list-container');
+    if (!listContainer) return;
+    let html = '';
+    recipes.forEach(recipe => {
+      const itemsCount = recipe.requirements ? recipe.requirements.length : 0;
+      html += `<div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); padding: 12px 16px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: space-between;">` +
+        `<div>` +
+        `<div style="font-weight: 600; font-size: 14px; color: var(--text-primary);">${escapeHtml(recipe.name)}</div>` +
+        `<div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">包含 ${itemsCount} 項物料需求</div>` +
+        `</div>` +
+        `<div style="display: flex; gap: 8px;">` +
+        `<button type="button" class="btn-secondary btn-edit-recipe-item" data-id="${recipe.id}" style="padding: 6px 10px; font-size: 11px;">編輯</button>` +
+        `<button type="button" class="btn-danger btn-delete-recipe-item" data-id="${recipe.id}" style="padding: 6px 10px; font-size: 11px;">刪除</button>` +
+        `</div>` +
+        `</div>`;
+    });
+    listContainer.innerHTML = html;
+
+    listContainer.querySelectorAll('.btn-edit-recipe-item').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const id = Number(this.getAttribute('data-id'));
+        openRecipeEditor(id);
+      });
+    });
+
+    listContainer.querySelectorAll('.btn-delete-recipe-item').forEach(btn => {
+      btn.addEventListener('click', function () {
+        const id = Number(this.getAttribute('data-id'));
+        if (id === 1) {
+          showToast('預設製程不能刪除');
+          return;
+        }
+        showConfirm('確定要刪除此配方嗎？這不會刪除已選用此配方的舊批次紀錄，但後續新增批次時將無法再選用此配方。', function () {
+          performCloudSyncAction(() => {
+            recipes = recipes.filter(r => r.id !== id);
+            saveData();
+          }, () => {
+            showToast('配方已刪除');
+            renderRecipeList();
+            populateRecipeDropdowns();
+          });
+        });
+      });
+    });
+  }
+
+  function openRecipeEditor(recipeId = null) {
+    const titleEl = document.getElementById('modal-recipe-edit-title');
+    const nameInput = document.getElementById('input-recipe-name');
+    const idInput = document.getElementById('input-recipe-id');
+    const requirementsContainer = document.getElementById('recipe-requirements-container');
+    
+    if (!requirementsContainer) return;
+    requirementsContainer.innerHTML = '';
+
+    if (recipeId) {
+      const recipe = findRecipe(recipeId);
+      if (recipe) {
+        titleEl.textContent = '編輯製程配方';
+        nameInput.value = recipe.name;
+        idInput.value = recipe.id;
+        
+        (recipe.requirements || []).forEach(req => {
+          addRecipeRequirementRow(req.materialId, req.requiredQty, req.processDay);
+        });
+      }
+    } else {
+      titleEl.textContent = '新增製程配方';
+      nameInput.value = '';
+      idInput.value = '';
+      addRecipeRequirementRow();
+    }
+    
+    openModal('recipe-edit');
+  }
+
+  function addRecipeRequirementRow(materialId = '', qty = 1, day = 'D0') {
+    const container = document.getElementById('recipe-requirements-container');
+    if (!container) return;
+
+    const rowId = 'req-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.className = 'form-row recipe-req-row';
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    row.style.marginBottom = '8px';
+
+    let options = '<option value="">-- 選擇物料 --</option>';
+    materials.forEach(mat => {
+      if (!mat.id) {
+        mat.id = generateId();
+      }
+      const isSelected = Number(materialId) === mat.id;
+      options += `<option value="${mat.id}" ${isSelected ? 'selected' : ''}>${mat.icon} ${escapeHtml(mat.name)}</option>`;
+    });
+    
+    const dayOptions = ['D0', 'D3', 'D11', 'D14', 'D1', 'D2', 'D5', 'D7', 'D10', 'D15', 'D21', 'D28', 'D30'];
+    if (!dayOptions.includes(day)) {
+      dayOptions.push(day);
+    }
+    dayOptions.sort((a,b) => (parseInt(a.substring(1), 10)||0) - (parseInt(b.substring(1), 10)||0));
+
+    let dayOptionsHtml = '';
+    dayOptions.forEach(dOpt => {
+      dayOptionsHtml += `<option value="${dOpt}" ${day === dOpt ? 'selected' : ''}>${dOpt}</option>`;
+    });
+
+    row.innerHTML = `
+      <div style="flex: 2;">
+        <select class="req-mat-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
+          ${options}
+        </select>
+      </div>
+      <div style="flex: 1; min-width: 80px;">
+        <input type="number" class="req-qty-input" min="1" value="${qty}" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 12px;" required>
+      </div>
+      <div style="flex: 1; min-width: 80px;">
+        <select class="req-day-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
+          ${dayOptionsHtml}
+        </select>
+      </div>
+      <div>
+        <button type="button" class="btn-qty-adj btn-dec btn-remove-req-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 14px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;">×</button>
+      </div>
+    `;
+
+    container.appendChild(row);
+
+    row.querySelector('.btn-remove-req-row').addEventListener('click', function () {
+      container.removeChild(row);
+    });
+  }
+
+  function initRecipeForm() {
+    const form = document.getElementById('form-recipe-edit');
+    const btnAddRow = document.getElementById('btn-add-recipe-requirement');
+
+    if (btnAddRow) {
+      btnAddRow.addEventListener('click', function () {
+        addRecipeRequirementRow();
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const name = document.getElementById('input-recipe-name').value.trim();
+        const editId = document.getElementById('input-recipe-id').value;
+
+        if (!name) {
+          showToast('請輸入配方名稱');
+          return;
+        }
+
+        const requirements = [];
+        const rows = document.querySelectorAll('.recipe-req-row');
+        let hasDuplicate = false;
+        const matDayKeys = new Set();
+
+        for (let row of rows) {
+          const matSelect = row.querySelector('.req-mat-select');
+          const qtyInput = row.querySelector('.req-qty-input');
+          const daySelect = row.querySelector('.req-day-select');
+
+          const materialId = Number(matSelect.value);
+          const qty = parseInt(qtyInput.value, 10) || 1;
+          const day = daySelect.value;
+
+          if (!materialId) {
+            showToast('請為所有配置行選擇物料品項');
+            return;
+          }
+
+          const checkKey = materialId + '_' + day;
+          if (matDayKeys.has(checkKey)) {
+            hasDuplicate = true;
+          }
+          matDayKeys.add(checkKey);
+
+          requirements.push({
+            materialId,
+            requiredQty: qty,
+            processDay: day
+          });
+        }
+
+        if (hasDuplicate) {
+          showToast('⚠️ 同一配方中，相同物料在同一天不能重複配置！');
+          return;
+        }
+
+        performCloudSyncAction(() => {
+          if (editId) {
+            const idx = recipes.findIndex(r => r.id === Number(editId));
+            if (idx !== -1) {
+              recipes[idx].name = name;
+              recipes[idx].requirements = requirements;
+            }
+          } else {
+            recipes.push({
+              id: generateId(),
+              name,
+              requirements
+            });
+          }
+          saveData();
+        }, () => {
+          closeModal('recipe-edit');
+          showToast(editId ? '配方已更新' : '配方已建立');
+          renderRecipeList();
+          populateRecipeDropdowns();
+          renderMaterialsList();
+          renderDashboard();
+        });
+      });
+    }
+  }
+
+  function populateRecipeDropdowns() {
+    const select = document.getElementById('input-process-recipe');
+    if (!select) return;
+    let html = '';
+    recipes.forEach(r => {
+      html += `<option value="${r.id}">${escapeHtml(r.name)}</option>`;
+    });
+    select.innerHTML = html;
   }
 
   // ─── Initialization ─────────────────────────────────────────────────
   function init() {
+    if (isInitialized) return;
+    isInitialized = true;
     loadData();
     initTabs();
     initModals();
     initConfirm();
     initProcessActionModals();
-    initFilterPills();
     initProcessForm();
     initMaterialForm();
     initIconPicker();
+    initRecipeForm();
     initSterilizationPage();
     initUsagePage();
     initSettings();
+    populateRecipeDropdowns();
+
+    // Bind settings buttons for Material Library and Recipes
+    const btnAddRecipe = document.getElementById('btn-add-recipe');
+    if (btnAddRecipe) {
+      btnAddRecipe.addEventListener('click', function () {
+        openRecipeEditor();
+      });
+    }
+
+    const btnAddLibMat = document.getElementById('btn-add-library-material');
+    if (btnAddLibMat) {
+      btnAddLibMat.addEventListener('click', function () {
+        document.getElementById('modal-material-title').textContent = '新增物料品項';
+        document.getElementById('input-material-name').value = '';
+        document.getElementById('input-material-icon').value = '📦';
+        const customIconInput = document.getElementById('input-material-custom-icon');
+        if (customIconInput) customIconInput.value = '';
+        document.getElementById('input-material-id').value = '';
+
+        const formRow = document.querySelector('#form-material .form-row');
+        if (formRow) formRow.style.display = 'none';
+
+        // Reset file upload
+        const fileInput = document.getElementById('input-material-file-icon');
+        const filePreview = document.getElementById('material-file-preview');
+        const imgPreview = document.getElementById('img-file-preview');
+        if (fileInput) fileInput.value = '';
+        if (filePreview) filePreview.style.display = 'none';
+        if (imgPreview) imgPreview.src = '';
+
+        // Reset icon picker
+        document.querySelectorAll('#icon-picker .icon-option').forEach(opt => {
+          opt.classList.toggle('selected', opt.getAttribute('data-icon') === '📦');
+        });
+        
+        formMaterialContext = 'library';
+        openModal('material');
+      });
+    }
+
+
+
     bindQtyAdjustButtons(document.getElementById('form-material'));
 
     renderProcessPills();

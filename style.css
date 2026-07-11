@@ -12,40 +12,40 @@
 }
 
 :root {
-  --bg-primary: #0a0a1a;
-  --bg-secondary: #0f0f2a;
-  --card-bg: rgba(255, 255, 255, 0.04);
-  --card-border: rgba(255, 255, 255, 0.08);
-  --card-hover: rgba(255, 255, 255, 0.07);
+  --bg-primary: #fbfbfa;       /* Notion Workspace grey background */
+  --bg-secondary: #ffffff;     /* Notion page background */
+  --card-bg: #ffffff;          /* White cards */
+  --card-border: rgba(55, 53, 47, 0.09); /* Subtle Notion gray border */
+  --card-hover: rgba(55, 53, 47, 0.03);
 
-  --primary: #00d4aa;
-  --primary-dim: rgba(0, 212, 170, 0.15);
-  --primary-glow: rgba(0, 212, 170, 0.35);
+  --primary: #2eaadc;          /* Notion standard light blue */
+  --primary-dim: rgba(46, 170, 220, 0.08);
+  --primary-glow: rgba(46, 170, 220, 0.2);
   --secondary: #667eea;
-  --secondary-dim: rgba(102, 126, 234, 0.15);
+  --secondary-dim: rgba(102, 126, 234, 0.08);
 
-  --success: #34c759;
-  --warning: #ff9500;
-  --danger: #ff3b30;
-  --success-dim: rgba(52, 199, 89, 0.12);
-  --warning-dim: rgba(255, 149, 0, 0.12);
-  --danger-dim: rgba(255, 59, 48, 0.12);
+  --success: #2b7a54;          /* Soft green */
+  --warning: #dfab01;          /* Soft yellow */
+  --danger: #b33939;           /* Soft red */
+  --success-dim: rgba(43, 122, 84, 0.08);
+  --warning-dim: rgba(223, 171, 1, 0.08);
+  --danger-dim: rgba(179, 57, 57, 0.08);
 
-  --text-primary: rgba(255, 255, 255, 0.92);
-  --text-secondary: rgba(255, 255, 255, 0.55);
-  --text-tertiary: rgba(255, 255, 255, 0.3);
+  --text-primary: #37352f;     /* Slate primary text */
+  --text-secondary: rgba(55, 53, 47, 0.65);
+  --text-tertiary: rgba(55, 53, 47, 0.4);
 
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --radius-xl: 28px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-pill: 100px;
 
-  --blur: blur(20px);
-  --transition: 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --transition-fast: 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  --transition-spring: 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --blur: none;
+  --transition: 0.15s ease;
+  --transition-fast: 0.1s ease;
+  --transition-spring: 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -59,7 +59,7 @@ html {
 
 body {
   font-family: var(--font);
-  background: linear-gradient(165deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, #0d0d24 100%);
+  background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
   min-height: 100dvh;
@@ -234,10 +234,10 @@ input, select, textarea, button {
   display: flex;
   align-items: center;
   justify-content: space-around;
-  background: rgba(10, 10, 26, 0.85);
-  backdrop-filter: blur(30px) saturate(1.5);
-  -webkit-backdrop-filter: blur(30px) saturate(1.5);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(30px);
+  -webkit-backdrop-filter: blur(30px);
+  border-top: 1px solid var(--card-border);
   z-index: 100;
 }
 
@@ -1000,7 +1000,7 @@ input, select, textarea, button {
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(55,53,47,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 30px;
@@ -1013,7 +1013,7 @@ input, select, textarea, button {
 }
 
 .inline-selector select option {
-  background: #1a1a3a;
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -1065,11 +1065,15 @@ input, select, textarea, button {
 .batch-input-header span {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #ffffff !important;
 }
 
 .batch-input-header .count {
   color: var(--primary);
+}
+
+.batch-input-area label {
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .batch-input-area .form-group {
@@ -1628,9 +1632,9 @@ input, select, textarea, button {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(15, 15, 15, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   z-index: 200;
   display: flex;
   align-items: flex-end;
@@ -1651,14 +1655,21 @@ input, select, textarea, button {
   max-height: 85vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  background: rgba(20, 20, 45, 0.95);
-  backdrop-filter: blur(40px) saturate(1.5);
-  -webkit-backdrop-filter: blur(40px) saturate(1.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-secondary);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid var(--card-border);
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 0 20px calc(var(--safe-bottom) + 20px);
   transform: translateY(100%);
   transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Stacking: material add/edit and recipe edit modals stack ABOVE library/list modals */
+#modal-material.modal-overlay,
+#modal-recipe-edit.modal-overlay,
+#modal-confirm.modal-overlay {
+  z-index: 300;
 }
 
 .modal-overlay.active .glass-modal {
@@ -1755,8 +1766,8 @@ input, select, textarea, button {
   box-sizing: border-box;
   padding: 12px 14px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-primary);
+  border: 1px solid var(--card-border);
   color: var(--text-primary);
   font-size: 15px;
   transition: all var(--transition);
@@ -1766,14 +1777,14 @@ input, select, textarea, button {
 .form-group select:focus,
 .form-group textarea:focus {
   border-color: var(--primary);
-  background: rgba(0, 212, 170, 0.04);
-  box-shadow: 0 0 0 3px rgba(0, 212, 170, 0.1);
+  background: var(--bg-secondary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
 }
 
 .form-group select {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(55,53,47,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 34px;
@@ -1781,7 +1792,7 @@ input, select, textarea, button {
 }
 
 .form-group select option {
-  background: #1a1a3a;
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -1824,7 +1835,7 @@ input[type="date"] {
 
 input[type="date"].date-input::-webkit-calendar-picker-indicator,
 .date-input input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(0.7);
+  filter: none;
   cursor: pointer;
 }
 
@@ -1944,10 +1955,10 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   transform: translateX(-50%) translateY(calc(-100% - var(--safe-top) - 30px));
   padding: 12px 24px;
   border-radius: var(--radius-pill);
-  background: rgba(20, 20, 45, 0.95);
+  background: var(--bg-secondary);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--card-border);
   color: var(--text-primary);
   font-size: 14px;
   font-weight: 500;
@@ -2450,7 +2461,7 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='rgba(55,53,47,0.4)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 6px center;
   padding-right: 20px;
@@ -2461,7 +2472,7 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   background: rgba(255, 255, 255, 0.1);
 }
 .tile-batch-select option {
-  background: #1a1a3a;
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
@@ -2794,6 +2805,43 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   background: var(--primary-dim);
   border-color: rgba(0, 212, 170, 0.4);
   box-shadow: 0 0 10px rgba(0, 212, 170, 0.1);
+}
+
+/* Notion-style tag pills */
+.notion-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 120%;
+  border: 1px solid transparent;
+}
+.notion-tag.red {
+  background: rgba(255, 115, 105, 0.15);
+  border-color: rgba(255, 115, 105, 0.2);
+  color: #ff7369;
+}
+.notion-tag.yellow {
+  background: rgba(245, 196, 0, 0.15);
+  border-color: rgba(245, 196, 0, 0.2);
+  color: #f5c400;
+}
+.notion-tag.green {
+  background: rgba(37, 180, 107, 0.15);
+  border-color: rgba(37, 180, 107, 0.2);
+  color: #25b46b;
+}
+.notion-tag.blue {
+  background: rgba(51, 126, 255, 0.15);
+  border-color: rgba(51, 126, 255, 0.2);
+  color: #337eff;
+}
+.notion-tag.gray {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 
