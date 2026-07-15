@@ -48,6 +48,7 @@
   let sterilizationRecords = [];
   let usageRecords = [];
   let currentProcessId = null;
+  let activeAlternatives = {}; // Key: "processId_day_primaryMaterialId", Value: selectedMaterialId
   let gasUrl = '/api/sync';
   let isNotionConfigured = true;
   let isSyncing = false;
@@ -227,7 +228,8 @@
         name: mat.name,
         icon: mat.icon,
         requiredQty: r.requiredQty,
-        processDay: r.processDay
+        processDay: r.processDay,
+        alternatives: r.alternatives || []
       };
     }).filter(Boolean);
   }
@@ -263,7 +265,28 @@
     if (stock === 0) status = 'danger';
     else if (stock < req.requiredQty) status = 'warn';
 
-    return { status, requiredQty: req.requiredQty, processDay: req.processDay, stock };
+    let alternativeAvailable = false;
+    if (status !== 'ok' && req.alternatives && req.alternatives.length > 0) {
+      for (const alt of req.alternatives) {
+        const altStock = getStock(alt.materialId, processId);
+        if (altStock >= alt.requiredQty) {
+          alternativeAvailable = true;
+          break;
+        }
+      }
+      if (alternativeAvailable) {
+        status = 'warn';
+      }
+    }
+
+    return { 
+      status, 
+      requiredQty: req.requiredQty, 
+      processDay: req.processDay, 
+      stock,
+      alternatives: req.alternatives || [],
+      alternativeAvailable
+    };
   }
 
   function getMaterialBatches(materialId, processId, includeOthers = true) {
@@ -1310,12 +1333,33 @@
             '</div>';
         }
 
+        let alternativesHtml = '';
+        if (info.alternatives && info.alternatives.length > 0) {
+          alternativesHtml = '<div class="tile-alts-panel" style="margin-top: 8px; font-size: 11px; opacity: 0.85; border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 6px; width: 100%; box-sizing: border-box;">';
+          alternativesHtml += '<div style="font-weight: 600; margin-bottom: 4px; color: var(--text-secondary); display: flex; align-items: center; gap: 4px;">🔄 可替代方案：</div>';
+          info.alternatives.forEach(alt => {
+            const altMat = findMaterial(alt.materialId);
+            if (altMat) {
+              const altStock = getStock(alt.materialId, currentProcessId);
+              const isStockOk = altStock >= alt.requiredQty;
+              const statusDot = isStockOk ? '🟢' : '🔴';
+              const noteText = alt.note ? ` (${alt.note})` : '';
+              alternativesHtml += `<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">` +
+                `<span style="display: flex; align-items: center; gap: 2px;">${statusDot} ${altMat.icon} ${escapeHtml(altMat.name)}${escapeHtml(noteText)}</span>` +
+                `<span>需求: ${alt.requiredQty} | 庫存: ${altStock}</span>` +
+                `</div>`;
+            }
+          });
+          alternativesHtml += '</div>';
+        }
+
         html += '<div class="material-tile status-' + info.status + '" data-id="' + mat.id + '">' +
           '<div class="tile-status-dot ' + info.status + '"></div>' +
           '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
           '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
           '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 庫存: ' + info.stock + '</div>' +
           '<div class="tile-days-left ' + daysLeftClass + '">' + daysLeftText + '</div>' +
+          alternativesHtml +
           detailPanelHtml +
           '</div>';
       });
@@ -1348,6 +1392,12 @@
       const panel = tile.querySelector('.tile-details-panel');
       if (panel) {
         panel.addEventListener('click', function (e) {
+          e.stopPropagation();
+        });
+      }
+      const altsPanel = tile.querySelector('.tile-alts-panel');
+      if (altsPanel) {
+        altsPanel.addEventListener('click', function (e) {
           e.stopPropagation();
         });
       }
@@ -1972,14 +2022,25 @@
     const groups = {};
     procDays.forEach(day => { groups[day] = []; });
     recipe.requirements.forEach(req => {
-      const mat = findMaterial(req.materialId);
+      const activeMaterialId = activeAlternatives[`${processId}_${req.processDay}_${req.materialId}`] || req.materialId;
+      let activeRequiredQty = req.requiredQty;
+      if (activeMaterialId !== req.materialId) {
+        const alt = (req.alternatives || []).find(a => a.materialId === activeMaterialId);
+        if (alt) {
+          activeRequiredQty = alt.requiredQty;
+        }
+      }
+
+      const mat = findMaterial(activeMaterialId);
       if (!mat) return;
       if (searchVal && !mat.name.toLowerCase().includes(searchVal)) return;
 
       const enrichedMat = {
         ...mat,
-        requiredQty: req.requiredQty,
-        processDay: req.processDay
+        requiredQty: activeRequiredQty,
+        processDay: req.processDay,
+        primaryMaterialId: req.materialId,
+        alternatives: req.alternatives || []
       };
       if (!groups[req.processDay]) groups[req.processDay] = [];
       groups[req.processDay].push(enrichedMat);
@@ -2009,11 +2070,35 @@
           defaultQty = deficit;
         }
 
+        let nameHtml = '';
+        if (mat.alternatives && mat.alternatives.length > 0) {
+          const primaryMat = findMaterial(mat.primaryMaterialId);
+          const primaryReq = recipe.requirements.find(r => r.materialId === mat.primaryMaterialId && r.processDay === day);
+          const primaryQty = primaryReq ? primaryReq.requiredQty : mat.requiredQty;
+          
+          let selectOptions = `<option value="${mat.primaryMaterialId}" data-qty="${primaryQty}" ${mat.id === mat.primaryMaterialId ? 'selected' : ''}>${primaryMat.icon} ${escapeHtml(primaryMat.name)} (主要, 需求: ${primaryQty})</option>`;
+          mat.alternatives.forEach((alt, idx) => {
+            const altMat = findMaterial(alt.materialId);
+            if (altMat) {
+              const noteText = alt.note ? ` - ${alt.note}` : '';
+              selectOptions += `<option value="${alt.materialId}" data-qty="${alt.requiredQty}" ${mat.id === alt.materialId ? 'selected' : ''}>${altMat.icon} ${escapeHtml(altMat.name)} (備選 ${idx + 1}, 需求: ${alt.requiredQty}${noteText})</option>`;
+            }
+          });
+          
+          nameHtml = `<div class="tile-name-select-wrap" style="margin-top: 8px; width: 100%;">` +
+            `<select class="tile-item-select" data-day="${day}" data-primary-id="${mat.primaryMaterialId}" data-previous-id="${mat.id}" style="width: 100%; padding: 6px 20px 6px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-primary); font-size: 11px; cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2214%22%20height%3D%2214%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255,255,255,0.6)%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%20%2F%3E%3C%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;">` +
+            selectOptions +
+            `</select>` +
+            `</div>`;
+        } else {
+          nameHtml = '<div class="tile-name" style="margin-top: 8px;">' + escapeHtml(mat.name) + '</div>';
+        }
+
         html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '" style="position: relative;">' +
           '<div class="tile-check"></div>' +
           '<div style="position: absolute; top: 8px; right: 8px;">' + tagHtml + '</div>' +
           '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
-          '<div class="tile-name" style="margin-top: 8px;">' + escapeHtml(mat.name) + '</div>' +
+          nameHtml +
           '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 庫存: ' + stock + '</div>' +
           '<div class="tile-qty-container">' +
           '<span class="tile-qty-label">數量</span>' +
@@ -2034,8 +2119,8 @@
     // Tile click
     container.querySelectorAll('.material-tile').forEach(tile => {
       tile.addEventListener('click', function (e) {
-        // Don't toggle if clicking input or its wrapper/label
-        if (e.target.closest('.tile-qty-container')) return;
+        // Don't toggle if clicking input or its wrapper/label or the item select dropdown
+        if (e.target.closest('.tile-qty-container') || e.target.closest('.tile-name-select-wrap')) return;
         const id = Number(this.getAttribute('data-id'));
         if (sterSelectedIds.has(id)) {
           sterSelectedIds.delete(id);
@@ -2044,6 +2129,27 @@
           sterSelectedIds.add(id);
           this.classList.add('selected');
         }
+        updateSterBatchInput();
+      });
+    });
+
+    // Item select change (alternatives)
+    container.querySelectorAll('.tile-item-select').forEach(select => {
+      select.addEventListener('click', function (e) { e.stopPropagation(); });
+      select.addEventListener('change', function () {
+        const primaryId = Number(this.getAttribute('data-primary-id'));
+        const previousId = Number(this.getAttribute('data-previous-id'));
+        const newId = Number(this.value);
+        const day = this.getAttribute('data-day');
+
+        activeAlternatives[`${processId}_${day}_${primaryId}`] = newId;
+
+        if (sterSelectedIds.has(previousId)) {
+          sterSelectedIds.delete(previousId);
+          sterSelectedIds.add(newId);
+        }
+
+        renderSterilizationTiles();
         updateSterBatchInput();
       });
     });
@@ -2332,14 +2438,25 @@
     const groups = {};
     procDays.forEach(day => { groups[day] = []; });
     recipe.requirements.forEach(req => {
-      const mat = findMaterial(req.materialId);
+      const activeMaterialId = activeAlternatives[`${processId}_${req.processDay}_${req.materialId}`] || req.materialId;
+      let activeRequiredQty = req.requiredQty;
+      if (activeMaterialId !== req.materialId) {
+        const alt = (req.alternatives || []).find(a => a.materialId === activeMaterialId);
+        if (alt) {
+          activeRequiredQty = alt.requiredQty;
+        }
+      }
+
+      const mat = findMaterial(activeMaterialId);
       if (!mat) return;
       if (searchVal && !mat.name.toLowerCase().includes(searchVal)) return;
 
       const enrichedMat = {
         ...mat,
-        requiredQty: req.requiredQty,
-        processDay: req.processDay
+        requiredQty: activeRequiredQty,
+        processDay: req.processDay,
+        primaryMaterialId: req.materialId,
+        alternatives: req.alternatives || []
       };
       if (!groups[req.processDay]) groups[req.processDay] = [];
       groups[req.processDay].push(enrichedMat);
@@ -2356,6 +2473,30 @@
       items.forEach(mat => {
         const batches = getMaterialBatches(mat.id, processId, true);
         const totalStock = batches.reduce((sum, b) => sum + b.remainingQty, 0);
+
+        let nameHtml = '';
+        if (mat.alternatives && mat.alternatives.length > 0) {
+          const primaryMat = findMaterial(mat.primaryMaterialId);
+          const primaryReq = recipe.requirements.find(r => r.materialId === mat.primaryMaterialId && r.processDay === day);
+          const primaryQty = primaryReq ? primaryReq.requiredQty : mat.requiredQty;
+          
+          let selectOptions = `<option value="${mat.primaryMaterialId}" data-qty="${primaryQty}" ${mat.id === mat.primaryMaterialId ? 'selected' : ''}>${primaryMat.icon} ${escapeHtml(primaryMat.name)} (主要, 需求: ${primaryQty})</option>`;
+          mat.alternatives.forEach((alt, idx) => {
+            const altMat = findMaterial(alt.materialId);
+            if (altMat) {
+              const noteText = alt.note ? ` - ${alt.note}` : '';
+              selectOptions += `<option value="${alt.materialId}" data-qty="${alt.requiredQty}" ${mat.id === alt.materialId ? 'selected' : ''}>${altMat.icon} ${escapeHtml(altMat.name)} (備選 ${idx + 1}, 需求: ${alt.requiredQty}${noteText})</option>`;
+            }
+          });
+          
+          nameHtml = `<div class="tile-name-select-wrap" style="margin-top: 8px; width: 100%;">` +
+            `<select class="tile-item-select" data-day="${day}" data-primary-id="${mat.primaryMaterialId}" data-previous-id="${mat.id}" style="width: 100%; padding: 6px 20px 6px 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-primary); font-size: 11px; cursor: pointer; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2214%22%20height%3D%2214%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22rgba(255,255,255,0.6)%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%3E%3Cpolyline%20points%3D%226%209%2012%2015%2018%209%22%20%2F%3E%3C%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 8px center; background-size: 12px;">` +
+            selectOptions +
+            `</select>` +
+            `</div>`;
+        } else {
+          nameHtml = '<div class="tile-name" style="margin-top: 8px;">' + escapeHtml(mat.name) + '</div>';
+        }
 
         if (batches.length > 0) {
           const isSelected = usageSelectedIds.has(mat.id);
@@ -2413,7 +2554,7 @@
           html += '<div class="material-tile' + (isSelected ? ' selected' : '') + '" data-id="' + mat.id + '">' +
             '<div class="tile-check"></div>' +
             '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
-            '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
+            nameHtml +
             '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 總庫存: ' + totalStock + '</div>' +
             '<div class="tile-batch-select-wrap">' +
             '<select class="tile-batch-select" data-id="' + mat.id + '">' +
@@ -2433,7 +2574,7 @@
           html += '<div class="material-tile disabled" data-id="' + mat.id + '">' +
             '<div class="tile-check"></div>' +
             '<div class="tile-icon">' + renderIconHtml(mat.icon, '36px') + '</div>' +
-            '<div class="tile-name">' + escapeHtml(mat.name) + '</div>' +
+            nameHtml +
             '<div class="tile-stock">需求: ' + mat.requiredQty + ' ｜ 庫存: 0</div>' +
             '<div class="tile-qty-container">' +
             '<span class="tile-qty-label">數量</span>' +
@@ -2455,7 +2596,7 @@
     // Tile click
     container.querySelectorAll('.material-tile').forEach(tile => {
       tile.addEventListener('click', function (e) {
-        if (e.target.closest('.tile-qty-container') || e.target.closest('.tile-batch-select-wrap')) return;
+        if (e.target.closest('.tile-qty-container') || e.target.closest('.tile-batch-select-wrap') || e.target.closest('.tile-name-select-wrap')) return;
         if (this.classList.contains('disabled')) return;
         const id = Number(this.getAttribute('data-id'));
         if (usageSelectedIds.has(id)) {
@@ -2465,6 +2606,27 @@
           usageSelectedIds.add(id);
           this.classList.add('selected');
         }
+        updateUsageBatchInput();
+      });
+    });
+
+    // Item select change (alternatives)
+    container.querySelectorAll('.tile-item-select').forEach(select => {
+      select.addEventListener('click', function (e) { e.stopPropagation(); });
+      select.addEventListener('change', function () {
+        const primaryId = Number(this.getAttribute('data-primary-id'));
+        const previousId = Number(this.getAttribute('data-previous-id'));
+        const newId = Number(this.value);
+        const day = this.getAttribute('data-day');
+
+        activeAlternatives[`${processId}_${day}_${primaryId}`] = newId;
+
+        if (usageSelectedIds.has(previousId)) {
+          usageSelectedIds.delete(previousId);
+          usageSelectedIds.add(newId);
+        }
+
+        renderUsageTiles();
         updateUsageBatchInput();
       });
     });
@@ -3036,7 +3198,7 @@
         idInput.value = recipe.id;
         
         (recipe.requirements || []).forEach(req => {
-          addRecipeRequirementRow(req.materialId, req.requiredQty, req.processDay);
+          addRecipeRequirementRow(req.materialId, req.requiredQty, req.processDay, req.alternatives);
         });
       }
     } else {
@@ -3049,18 +3211,15 @@
     openModal('recipe-edit');
   }
 
-  function addRecipeRequirementRow(materialId = '', qty = 1, day = 'D0') {
+  function addRecipeRequirementRow(materialId = '', qty = 1, day = 'D0', alternatives = []) {
     const container = document.getElementById('recipe-requirements-container');
     if (!container) return;
 
-    const rowId = 'req-row-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-    const row = document.createElement('div');
-    row.id = rowId;
-    row.className = 'form-row recipe-req-row';
-    row.style.display = 'flex';
-    row.style.gap = '8px';
-    row.style.alignItems = 'center';
-    row.style.marginBottom = '8px';
+    const group = document.createElement('div');
+    group.className = 'recipe-req-group';
+    group.style.borderBottom = '1px dashed rgba(255,255,255,0.1)';
+    group.style.paddingBottom = '12px';
+    group.style.marginBottom = '12px';
 
     let options = '<option value="">-- 選擇物料 --</option>';
     materials.forEach(mat => {
@@ -3082,28 +3241,85 @@
       dayOptionsHtml += `<option value="${dOpt}" ${day === dOpt ? 'selected' : ''}>${dOpt}</option>`;
     });
 
+    group.innerHTML = `
+      <div class="recipe-req-row" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <div style="flex: 2;">
+          <select class="req-mat-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
+            ${options}
+          </select>
+        </div>
+        <div style="flex: 1; min-width: 80px;">
+          <input type="number" class="req-qty-input" min="1" value="${qty}" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 12px;" required>
+        </div>
+        <div style="flex: 1; min-width: 80px;">
+          <select class="req-day-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
+            ${dayOptionsHtml}
+          </select>
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button type="button" class="btn-add-alt-row" title="新增備選" style="background: rgba(0, 122, 255, 0.15); border: 1px solid rgba(0, 122, 255, 0.3); color: #3897ff; font-size: 11px; padding: 0 8px; height: 30px; border-radius: 6px; cursor: pointer; white-space: nowrap;">➕ 備選</button>
+          <button type="button" class="btn-qty-adj btn-dec btn-remove-req-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 14px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;">×</button>
+        </div>
+      </div>
+      <div class="recipe-alt-rows-container" style="padding-left: 24px; display: flex; flex-direction: column; gap: 6px;">
+        <!-- Nested alternative rows -->
+      </div>
+    `;
+
+    container.appendChild(group);
+
+    const altContainer = group.querySelector('.recipe-alt-rows-container');
+
+    // Populate existing alternatives
+    if (alternatives && alternatives.length > 0) {
+      alternatives.forEach(alt => {
+        addRecipeAlternativeRow(altContainer, alt.materialId, alt.requiredQty, alt.note);
+      });
+    }
+
+    group.querySelector('.btn-remove-req-row').addEventListener('click', function () {
+      container.removeChild(group);
+    });
+
+    group.querySelector('.btn-add-alt-row').addEventListener('click', function () {
+      addRecipeAlternativeRow(altContainer);
+    });
+  }
+
+  function addRecipeAlternativeRow(container, altMaterialId = '', altQty = 1, altNote = '') {
+    const row = document.createElement('div');
+    row.className = 'recipe-alt-row';
+    row.style.display = 'flex';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+
+    let options = '<option value="">-- 選擇替代物料 --</option>';
+    materials.forEach(mat => {
+      const isSelected = Number(altMaterialId) === mat.id;
+      options += `<option value="${mat.id}" ${isSelected ? 'selected' : ''}>${mat.icon} ${escapeHtml(mat.name)}</option>`;
+    });
+
     row.innerHTML = `
+      <div style="color: var(--text-secondary); font-size: 11px; width: 14px;">↳</div>
       <div style="flex: 2;">
-        <select class="req-mat-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
+        <select class="alt-mat-select" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; font-size: 11px;" required>
           ${options}
         </select>
       </div>
-      <div style="flex: 1; min-width: 80px;">
-        <input type="number" class="req-qty-input" min="1" value="${qty}" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 12px;" required>
+      <div style="flex: 1; min-width: 60px;">
+        <input type="number" class="alt-qty-input" min="1" value="${altQty}" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 11px;" required>
       </div>
-      <div style="flex: 1; min-width: 80px;">
-        <select class="req-day-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
-          ${dayOptionsHtml}
-        </select>
+      <div style="flex: 1.5; min-width: 80px;">
+        <input type="text" class="alt-note-input" placeholder="備註(如:人少夠用)" value="${escapeHtml(altNote)}" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; font-size: 11px;">
       </div>
       <div>
-        <button type="button" class="btn-qty-adj btn-dec btn-remove-req-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 14px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;">×</button>
+        <button type="button" class="btn-remove-alt-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 12px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer;">×</button>
       </div>
     `;
 
     container.appendChild(row);
 
-    row.querySelector('.btn-remove-req-row').addEventListener('click', function () {
+    row.querySelector('.btn-remove-alt-row').addEventListener('click', function () {
       container.removeChild(row);
     });
   }
@@ -3130,14 +3346,14 @@
         }
 
         const requirements = [];
-        const rows = document.querySelectorAll('.recipe-req-row');
+        const groups = document.querySelectorAll('.recipe-req-group');
         let hasDuplicate = false;
         const matDayKeys = new Set();
 
-        for (let row of rows) {
-          const matSelect = row.querySelector('.req-mat-select');
-          const qtyInput = row.querySelector('.req-qty-input');
-          const daySelect = row.querySelector('.req-day-select');
+        for (let group of groups) {
+          const matSelect = group.querySelector('.req-mat-select');
+          const qtyInput = group.querySelector('.req-qty-input');
+          const daySelect = group.querySelector('.req-day-select');
 
           const materialId = Number(matSelect.value);
           const qty = parseInt(qtyInput.value, 10) || 1;
@@ -3154,10 +3370,35 @@
           }
           matDayKeys.add(checkKey);
 
+          // Get alternatives
+          const alternatives = [];
+          const altRows = group.querySelectorAll('.recipe-alt-row');
+          for (let altRow of altRows) {
+            const altMatSelect = altRow.querySelector('.alt-mat-select');
+            const altQtyInput = altRow.querySelector('.alt-qty-input');
+            const altNoteInput = altRow.querySelector('.alt-note-input');
+
+            const altMatId = Number(altMatSelect.value);
+            const altQty = parseInt(altQtyInput.value, 10) || 1;
+            const altNote = altNoteInput.value.trim();
+
+            if (!altMatId) {
+              showToast('請為所有備選行選擇替代物料');
+              return;
+            }
+
+            alternatives.push({
+              materialId: altMatId,
+              requiredQty: altQty,
+              note: altNote
+            });
+          }
+
           requirements.push({
             materialId,
             requiredQty: qty,
-            processDay: day
+            processDay: day,
+            alternatives
           });
         }
 
