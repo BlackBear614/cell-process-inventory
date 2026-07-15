@@ -2844,5 +2844,72 @@ input[type="date"].date-input::-webkit-calendar-picker-indicator,
   color: rgba(255, 255, 255, 0.6);
 }
 
+/* ============================================
+   Recipe requirements and alternatives layout
+   ============================================ */
+.recipe-req-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.recipe-req-row > .col-mat {
+  flex: 2;
+  min-width: 150px;
+}
+.recipe-req-row > .col-qty {
+  flex: 1;
+  min-width: 70px;
+}
+.recipe-req-row > .col-day {
+  flex: 1;
+  min-width: 70px;
+}
+.recipe-req-row > .col-btn {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.recipe-alt-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+.recipe-alt-row > .col-alt-arrow {
+  color: var(--text-secondary);
+  font-size: 11px;
+  width: 14px;
+  flex-shrink: 0;
+}
+.recipe-alt-row > .col-alt-mat {
+  flex: 2;
+  min-width: 130px;
+}
+.recipe-alt-row > .col-alt-qty {
+  flex: 1;
+  min-width: 50px;
+}
+.recipe-alt-row > .col-alt-note {
+  flex: 1.5;
+  min-width: 80px;
+}
+.recipe-alt-row > .col-alt-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 479px) {
+  .recipe-req-row > .col-mat {
+    flex: 1 0 100%;
+  }
+  .recipe-alt-row > .col-alt-mat {
+    flex: 1 0 calc(100% - 30px);
+  }
+}
+
+
 
 

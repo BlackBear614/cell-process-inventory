@@ -3217,9 +3217,6 @@
 
     const group = document.createElement('div');
     group.className = 'recipe-req-group';
-    group.style.borderBottom = '1px dashed rgba(255,255,255,0.1)';
-    group.style.paddingBottom = '12px';
-    group.style.marginBottom = '12px';
 
     let options = '<option value="">-- 選擇物料 --</option>';
     materials.forEach(mat => {
@@ -3242,26 +3239,26 @@
     });
 
     group.innerHTML = `
-      <div class="recipe-req-row" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-        <div style="flex: 2;">
+      <div class="recipe-req-row">
+        <div class="col-mat">
           <select class="req-mat-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
             ${options}
           </select>
         </div>
-        <div style="flex: 1; min-width: 80px;">
+        <div class="col-qty">
           <input type="number" class="req-qty-input" min="1" value="${qty}" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 12px;" required>
         </div>
-        <div style="flex: 1; min-width: 80px;">
+        <div class="col-day">
           <select class="req-day-select" style="width: 100%; padding: 8px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-primary); box-sizing: border-box; font-size: 12px;" required>
             ${dayOptionsHtml}
           </select>
         </div>
-        <div style="display: flex; gap: 4px;">
+        <div class="col-btn">
           <button type="button" class="btn-add-alt-row" title="新增備選" style="background: rgba(0, 122, 255, 0.15); border: 1px solid rgba(0, 122, 255, 0.3); color: #3897ff; font-size: 11px; padding: 0 8px; height: 30px; border-radius: 6px; cursor: pointer; white-space: nowrap;">➕ 備選</button>
           <button type="button" class="btn-qty-adj btn-dec btn-remove-req-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 14px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 6px; cursor: pointer;">×</button>
         </div>
       </div>
-      <div class="recipe-alt-rows-container" style="padding-left: 24px; display: flex; flex-direction: column; gap: 6px;">
+      <div class="recipe-alt-rows-container">
         <!-- Nested alternative rows -->
       </div>
     `;
@@ -3289,9 +3286,6 @@
   function addRecipeAlternativeRow(container, altMaterialId = '', altQty = 1, altNote = '') {
     const row = document.createElement('div');
     row.className = 'recipe-alt-row';
-    row.style.display = 'flex';
-    row.style.gap = '8px';
-    row.style.alignItems = 'center';
 
     let options = '<option value="">-- 選擇替代物料 --</option>';
     materials.forEach(mat => {
@@ -3300,19 +3294,19 @@
     });
 
     row.innerHTML = `
-      <div style="color: var(--text-secondary); font-size: 11px; width: 14px;">↳</div>
-      <div style="flex: 2;">
+      <div class="col-alt-arrow">↳</div>
+      <div class="col-alt-mat">
         <select class="alt-mat-select" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; font-size: 11px;" required>
           ${options}
         </select>
       </div>
-      <div style="flex: 1; min-width: 60px;">
+      <div class="col-alt-qty">
         <input type="number" class="alt-qty-input" min="1" value="${altQty}" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; text-align: center; font-size: 11px;" required>
       </div>
-      <div style="flex: 1.5; min-width: 80px;">
+      <div class="col-alt-note">
         <input type="text" class="alt-note-input" placeholder="備註(如:人少夠用)" value="${escapeHtml(altNote)}" style="width: 100%; padding: 6px; border-radius: var(--radius-sm); border: 1px solid rgba(255,255,255,0.08); background: rgba(0,0,0,0.3); color: var(--text-primary); box-sizing: border-box; font-size: 11px;">
       </div>
-      <div>
+      <div class="col-alt-btn">
         <button type="button" class="btn-remove-alt-row" style="background: rgba(255,59,48,0.1); border: 1px solid rgba(255,59,48,0.2); color: var(--danger); font-size: 12px; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; cursor: pointer;">×</button>
       </div>
     `;
